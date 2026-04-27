@@ -6,7 +6,6 @@ export default function AuthLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  console.log("auth layout");
   return (
     <>
       <Header />
