@@ -1,6 +1,6 @@
 "use client";
 
-// import register from "@/actions/auth/register";
+import register from "@/actions/auth/register";
 import logo from "@/assets/images/pgbr.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,10 +16,10 @@ export default function RegisterForm() {
 
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // const formData = new FormData(e.currentTarget);
-    // const { error } = await register(formData);
+    const formData = new FormData(e.currentTarget);
+    const { error } = await register(formData);
 
-    // if (error) return toast.error(error.message);
+    if (error) return toast.error(error.message);
 
     toast.success("Account created successfully");
     router.replace("/dashboard");

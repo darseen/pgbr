@@ -8,6 +8,20 @@
       "when": 1777818956426,
       "tag": "0000_curved_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1777819611371,
+      "tag": "0001_yellow_ben_urich",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1777819722962,
+      "tag": "0002_quick_kabuki",
+      "breakpoints": true
     }
   ]
 }

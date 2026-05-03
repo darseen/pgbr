@@ -1,6 +1,6 @@
 "use client";
 
-// import signIn from "@/actions/auth/sign-in";
+import signIn from "@/actions/auth/sign-in";
 import logo from "@/assets/images/pgbr.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,10 +15,10 @@ export default function SignInForm() {
 
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // const formData = new FormData(e.currentTarget);
-    // const { error } = await signIn(formData);
+    const formData = new FormData(e.currentTarget);
+    const { error } = await signIn(formData);
 
-    // if (error) return toast.error(error.message);
+    if (error) return toast.error(error.message);
 
     toast.success("Signed in successfully");
     router.replace("/dashboard");
