@@ -1,9 +1,9 @@
-import { pgTable, uuid, varchar } from "drizzle-orm/pg-core";
+import { sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { timestamps } from "./_utils/shared-columns";
 
-export const usersTable = pgTable("users", {
-  id: uuid().primaryKey().defaultRandom(),
-  username: varchar({ length: 25 }).notNull(),
-  password: varchar({ length: 255 }).notNull(),
+export const usersTable = sqliteTable("users", {
+  id: text().primaryKey(),
+  username: text({ length: 25 }).notNull(),
+  password: text({ length: 255 }).notNull(),
   ...timestamps,
 });
