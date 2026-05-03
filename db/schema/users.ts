@@ -4,7 +4,7 @@ import { timestamps } from "./_utils/shared-columns";
 
 export const usersTable = sqliteTable("users", {
   id: text().primaryKey(),
-  username: text({ length: 25 }).notNull(),
+  username: text({ length: 25 }).notNull().unique(),
   password: text({ length: 255 }).notNull(),
   ...timestamps,
 });
