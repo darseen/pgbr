@@ -6,7 +6,7 @@ import { usersTable } from "./users";
 export const databasesTable = sqliteTable("databases", {
   id: text().primaryKey(),
   userId: text().references(() => usersTable.id, { onDelete: "set null" }),
-  name: text({ length: 255 }).notNull(),
+  name: text().notNull().unique(),
   url: text().notNull(),
   ...timestamps,
 });
