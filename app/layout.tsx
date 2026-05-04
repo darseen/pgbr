@@ -18,7 +18,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "pgbr",
+  title: {
+    default: "pgbr",
+    template: "%s - pgbr",
+  },
   description: "Postgres backup and restore",
 };
 
@@ -39,7 +42,7 @@ export default function RootLayout({
         geist.variable,
       )}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex min-h-full flex-col">
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
