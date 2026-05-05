@@ -8,9 +8,22 @@ export async function proxy(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
   const { pathname } = request.nextUrl;
 
-  // If the user has a token and is on the homepage, redirect to the dashboard.
-  if (token && pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  // check if there is a user in the database
+  const [user] = await db.select().from(usersTable);
+
+  if (!user && pathname === "/") {
+    return NextResponse.redirect(new URL("/register", request.url));
+  }
+
+  if (user && pathname === "/register") {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  if (user) {
+    if (token && pathname === "/") {
+      // If the user has a token and is on the homepage, redirect to the dashboard.
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   // If the user is trying to access a protected dashboard route without a token, redirect to the homepage.
@@ -44,5 +57,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*"],
+  matcher: ["/", "/register", "/dashboard/:path*"],
 };
