@@ -2,7 +2,7 @@ import { InferSelectModel, relations, sql } from "drizzle-orm";
 import { sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { databasesTable } from "./databases";
 
-export const backupJobStatus = [
+export const restoreJobStatus = [
   "pending",
   "running",
   "completed",
@@ -15,7 +15,10 @@ export const restoreJobsTable = sqliteTable("restore_jobs", {
     onDelete: "set null",
   }),
   databaseName: text().notNull(),
-  status: text({ enum: backupJobStatus }).notNull(),
+  status: text({ enum: restoreJobStatus }).notNull(),
+  userId: text().references(() => databasesTable.id, {
+    onDelete: "set null",
+  }),
   backupPath: text().notNull(),
   flags: text().notNull(),
   error: text(),
@@ -28,6 +31,10 @@ export const restoreJobsTable = sqliteTable("restore_jobs", {
 export const restoreJobsRelations = relations(restoreJobsTable, ({ one }) => ({
   database: one(databasesTable, {
     fields: [restoreJobsTable.databaseId],
+    references: [databasesTable.id],
+  }),
+  user: one(databasesTable, {
+    fields: [restoreJobsTable.userId],
     references: [databasesTable.id],
   }),
 }));
