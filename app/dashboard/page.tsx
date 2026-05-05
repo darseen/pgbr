@@ -3,6 +3,7 @@ import { backupJobsTable, restoreJobsTable } from "@/db/schema";
 import auth from "@/utils/auth";
 import { eq } from "drizzle-orm";
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import Header from "./_components/header";
 import DatabasesList from "./_components/sections/databases-list";
 import JobHistory from "./_components/sections/job-history";
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 export default async function Page() {
   const user = await auth();
 
-  if (!user) throw new Error("Not authenticated");
+  if (!user) redirect("/");
 
   const [backupJobs, restoreJobs] = await Promise.all([
     db

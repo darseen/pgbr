@@ -5,6 +5,7 @@ import { BackupJob } from "@/db/schema/backup-jobs";
 import auth from "@/utils/auth";
 import { eq } from "drizzle-orm";
 import { Server } from "lucide-react";
+import { redirect } from "next/navigation";
 import DatabaseCard from "./card";
 import DatabaseForm from "./form";
 
@@ -14,7 +15,7 @@ interface Props {
 
 export default async function DatabasesList({ backupJobs }: Props) {
   const user = await auth();
-  if (!user) throw new Error("Not authenticated");
+  if (!user) redirect("/");
 
   const databases = await db
     .select()
