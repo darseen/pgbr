@@ -1,7 +1,7 @@
 import signOut from "@/actions/auth/sign-out";
 import logo from "@/assets/images/pgbr.png";
 import { Button } from "@/components/ui/button";
-import { LogOut, RefreshCw } from "lucide-react";
+import { LogOut } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -20,10 +20,6 @@ export default function Header() {
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm">
-            <RefreshCw className="size-4" />
-            Refresh
-          </Button>
           <Button variant="ghost" size="sm" onClick={signOut}>
             <LogOut className="size-4" />
             Logout
