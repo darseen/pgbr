@@ -7,7 +7,7 @@ import Link from "next/link";
 
 export default function Header() {
   return (
-    <header className="bg-card border-b">
+    <header className="bg-card sticky top-0 z-10 border-b">
       <div className="container mx-auto flex items-center justify-between px-4 py-4">
         <div className="flex items-center gap-3">
           <Link href={"/"} className="flex items-center gap-1">
