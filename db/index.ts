@@ -1,8 +1,14 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import path from "node:path";
 import * as schema from "./schema";
 
-const sqlite = new Database("data/pgbr.db");
+const pgbrDataPath = path.join(
+  `${process.env.PGBR_DATA ?? "./data"}`,
+  "pgbr.db",
+);
+
+const sqlite = new Database(pgbrDataPath);
 
 export const db = drizzle({
   client: sqlite,
