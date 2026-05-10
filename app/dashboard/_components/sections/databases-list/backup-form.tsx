@@ -27,16 +27,19 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { DEFAULT_BACKUP_FLAGS } from "@/constants";
-import { Database } from "@/db/schema";
-import type { BackupFlags } from "@/types";
+import { BackupJob, Database } from "@/db/schema";
+import type { ApiResponse, BackupFlags } from "@/types";
 import { Download, Settings2 } from "lucide-react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { SubmitEvent, useState } from "react";
+import { SSE } from "sse.js";
 
 interface BackupFormProps {
   database: Database;
 }
 
 export default function BackupForm({ database }: BackupFormProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -50,30 +53,41 @@ export default function BackupForm({ database }: BackupFormProps) {
     setFlags((f) => ({ ...f, [key]: value }));
   }
 
-  async function handleBackup(e: React.FormEvent) {
+  async function handleBackup(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/backup", {
+      const event = new SSE("/api/backup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        payload: JSON.stringify({
           databaseId: database.id,
           flags,
         }),
       });
 
-      const data = await res.json();
+      event.addEventListener("message", (e: object) => {
+        if ("data" in e && typeof e.data === "string") {
+          const response = JSON.parse(e.data) as ApiResponse<{
+            backupJob: BackupJob;
+          }>;
+          const { error } = response;
 
-      if (!res.ok) {
-        setError(data.error || "Failed to start backup");
-        return;
-      }
+          if (error) {
+            setError(error.message);
+            return;
+          }
 
-      setOpen(false);
-      setFlags(DEFAULT_BACKUP_FLAGS);
+          router.refresh();
+
+          setOpen(false);
+          setFlags(DEFAULT_BACKUP_FLAGS);
+          setError(null);
+          setIsLoading(false);
+        }
+      });
     } catch {
       setError("An unexpected error occurred");
     } finally {

@@ -25,7 +25,14 @@ export interface RestoreFlags {
   ifExists: boolean;
 }
 
-export type ApiResponse<T> = {
+export type ApiResponse<T> = SuccessResponse<T> | ErrorResponse;
+
+type SuccessResponse<T> = {
   data: T;
+  error: null;
+};
+
+type ErrorResponse = {
+  data: null;
   error: { message: string };
 };

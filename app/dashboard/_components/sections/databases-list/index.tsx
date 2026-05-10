@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { databasesTable } from "@/db/schema";
 import { BackupJob } from "@/db/schema/backup-jobs";
 import auth from "@/utils/auth";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { Server } from "lucide-react";
 import { redirect } from "next/navigation";
 import DatabaseCard from "./card";
@@ -20,7 +20,8 @@ export default async function DatabasesList({ backupJobs }: Props) {
   const databases = await db
     .select()
     .from(databasesTable)
-    .where(eq(databasesTable.userId, user.id));
+    .where(eq(databasesTable.userId, user.id))
+    .orderBy(desc(databasesTable.createdAt));
 
   return (
     <div className="space-y-6">
@@ -49,7 +50,7 @@ export default async function DatabasesList({ backupJobs }: Props) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2">
+        <div className="grid gap-6">
           {databases.map((database) => (
             <DatabaseCard
               key={database.id}

@@ -1,3 +1,4 @@
+import { BackupFlags } from "@/types";
 import { InferSelectModel, relations, sql } from "drizzle-orm";
 import { sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { timestamps } from "./_utils/shared-columns";
@@ -14,7 +15,7 @@ export const backupJobStatus = [
 export const backupJobsTable = sqliteTable("backup_jobs", {
   id: text().primaryKey(),
   databaseId: text().references(() => databasesTable.id, {
-    onDelete: "cascade",
+    onDelete: "set null",
   }),
   userId: text().references(() => usersTable.id, {
     onDelete: "set null",
@@ -22,7 +23,7 @@ export const backupJobsTable = sqliteTable("backup_jobs", {
   databaseName: text().notNull(),
   status: text({ enum: backupJobStatus }).notNull(),
   backupPath: text().notNull(),
-  flags: text().notNull(),
+  flags: text({ mode: "json" }).$type<BackupFlags>().notNull(),
   error: text(),
   startedAt: text()
     .default(sql`(CURRENT_TIMESTAMP)`)

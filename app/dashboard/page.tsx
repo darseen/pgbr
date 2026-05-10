@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { backupJobsTable, restoreJobsTable } from "@/db/schema";
 import auth from "@/utils/auth";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import Header from "./_components/header";
@@ -21,11 +21,13 @@ export default async function Page() {
     db
       .select()
       .from(backupJobsTable)
-      .where(eq(backupJobsTable.userId, user.id)),
+      .where(eq(backupJobsTable.userId, user.id))
+      .orderBy(desc(backupJobsTable.createdAt)),
     db
       .select()
       .from(restoreJobsTable)
-      .where(eq(restoreJobsTable.userId, user.id)),
+      .where(eq(restoreJobsTable.userId, user.id))
+      .orderBy(desc(restoreJobsTable.createdAt)),
   ]);
 
   return (

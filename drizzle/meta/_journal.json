@@ -50,6 +50,20 @@
       "when": 1777993768478,
       "tag": "0006_jittery_raza",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1778422232442,
+      "tag": "0007_normal_marvel_boy",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1778449705573,
+      "tag": "0008_pink_chat",
+      "breakpoints": true
     }
   ]
 }

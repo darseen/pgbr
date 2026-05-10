@@ -1,5 +1,7 @@
+import { RestoreFlags } from "@/types";
 import { InferSelectModel, relations, sql } from "drizzle-orm";
 import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { timestamps } from "./_utils/shared-columns";
 import { databasesTable } from "./databases";
 
 export const restoreJobStatus = [
@@ -20,12 +22,13 @@ export const restoreJobsTable = sqliteTable("restore_jobs", {
     onDelete: "set null",
   }),
   backupPath: text().notNull(),
-  flags: text().notNull(),
+  flags: text({ mode: "json" }).$type<RestoreFlags>().notNull(),
   error: text(),
   startedAt: text()
     .default(sql`(CURRENT_TIMESTAMP)`)
     .notNull(),
   completedAt: text(),
+  ...timestamps,
 });
 
 export const restoreJobsRelations = relations(restoreJobsTable, ({ one }) => ({
