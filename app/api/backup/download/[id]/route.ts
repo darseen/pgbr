@@ -2,9 +2,12 @@ import { db } from "@/db";
 import { backupJobsTable } from "@/db/schema";
 import auth from "@/utils/auth";
 import { eq } from "drizzle-orm";
+import JSZip from "jszip";
 import { NextRequest, NextResponse } from "next/server";
-import { open, stat } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { open, readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { Readable } from "node:stream";
 
 export async function GET(
   request: NextRequest,
@@ -31,9 +34,45 @@ export async function GET(
     }
 
     const backupPath = backupJob.backupPath;
-
     const filename = path.basename(backupPath);
-    const stats = await stat(backupPath);
+
+    let fileStats;
+    try {
+      fileStats = await stat(backupPath);
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        return NextResponse.json(
+          { error: "File or directory not found on disk" },
+          { status: 404 },
+        );
+      }
+      throw err;
+    }
+
+    if (fileStats.isDirectory()) {
+      const zip = new JSZip();
+
+      await addDirectoryToZip(zip, backupPath);
+
+      const nodeStream = zip.generateNodeStream({
+        type: "nodebuffer",
+        streamFiles: true,
+        compression: "DEFLATE",
+        compressionOptions: { level: 5 },
+      });
+
+      const webStream = Readable.toWeb(
+        nodeStream as Readable,
+      ) as unknown as ReadableStream;
+
+      return new NextResponse(webStream, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Disposition": `attachment; filename="${filename}.zip"`,
+        },
+      });
+    }
 
     const fileHandle = await open(backupPath, "r");
     const stream = fileHandle.readableWebStream();
@@ -42,23 +81,37 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": "application/octet-stream",
-        "Content-Length": stats.size.toString(),
+        "Content-Length": fileStats.size.toString(),
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
   } catch (error) {
-    console.error(error);
-
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return NextResponse.json(
-        { error: "File not found on disk" },
-        { status: 404 },
-      );
-    }
+    console.error("Download streaming error:", error);
 
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
     );
+  }
+}
+
+async function addDirectoryToZip(
+  zip: JSZip,
+  dirPath: string,
+  basePath: string = "",
+) {
+  const files = await readdir(dirPath);
+
+  for (const file of files) {
+    const fullPath = path.join(dirPath, file);
+    const fileStat = await stat(fullPath);
+    const zipPath = path.join(basePath, file).replace(/\\/g, "/");
+
+    if (fileStat.isDirectory()) {
+      zip.folder(zipPath);
+      await addDirectoryToZip(zip, fullPath, zipPath);
+    } else {
+      zip.file(zipPath, createReadStream(fullPath));
+    }
   }
 }
