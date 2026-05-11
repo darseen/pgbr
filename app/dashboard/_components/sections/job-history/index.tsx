@@ -12,9 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BackupJob, RestoreJob } from "@/db/schema";
 import { Download, Upload } from "lucide-react";
 import { useState } from "react";
-import BackupJobItem from "./backup-job-item";
+import BackupJobCard from "./backup-job-card";
 import DownloadDialog from "./download-dialog";
-import RestoreJobItem from "./restore-job-item";
+import RestoreJobItem from "./restore-job-card";
 
 interface Props {
   restoreJobs: RestoreJob[];
@@ -80,7 +80,7 @@ export default function JobHistory({ restoreJobs, backupJobs }: Props) {
                   <div className="space-y-3">
                     {backupJobs.length > 0 ? (
                       backupJobs.map((job) => (
-                        <BackupJobItem
+                        <BackupJobCard
                           key={job.id}
                           job={job}
                           onDownloadClick={handleCardClick}

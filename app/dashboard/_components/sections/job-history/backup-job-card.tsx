@@ -20,7 +20,7 @@ interface Props {
   onDownloadClick: (job: BackupJob) => void;
 }
 
-export default function BackupJobItem({ job, onDownloadClick }: Props) {
+export default function BackupJobCard({ job, onDownloadClick }: Props) {
   return (
     <Card
       className="hover:border-primary border transition-colors hover:cursor-pointer"
@@ -61,7 +61,9 @@ export default function BackupJobItem({ job, onDownloadClick }: Props) {
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
           <span>
             Started{" "}
-            {formatDistanceToNow(new Date(job.startedAt), { addSuffix: true })}
+            {formatDistanceToNow(new Date(job.startedAt + "Z"), {
+              addSuffix: true,
+            })}
           </span>
           {job.completedAt && (
             <span>
