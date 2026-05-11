@@ -1,5 +1,6 @@
 import signOut from "@/actions/auth/sign-out";
 import logo from "@/assets/images/pgbr.png";
+import ThemeToggle from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import Image from "next/image";
@@ -22,8 +23,10 @@ export default function Header() {
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={signOut}>
             <LogOut className="size-4" />
-            Logout
+            Sign out
           </Button>
+
+          <ThemeToggle />
         </div>
       </div>
     </header>
