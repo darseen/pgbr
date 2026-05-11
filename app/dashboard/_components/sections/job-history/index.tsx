@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Card,
   CardContent,
@@ -9,7 +11,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BackupJob, RestoreJob } from "@/db/schema";
 import { Download, Upload } from "lucide-react";
+import { useState } from "react";
 import BackupJobItem from "./backup-job-item";
+import DownloadDialog from "./download-dialog";
 import RestoreJobItem from "./restore-job-item";
 
 interface Props {
@@ -18,10 +22,19 @@ interface Props {
 }
 
 export default function JobHistory({ restoreJobs, backupJobs }: Props) {
+  const [selectedJob, setSelectedJob] = useState<BackupJob | null>(null);
+
+  const handleCardClick = (job: BackupJob) => {
+    setSelectedJob(job);
+  };
+
+  const handleCloseDialog = () => {
+    setSelectedJob(null);
+  };
   const hasJobs = backupJobs.length > 0 || restoreJobs.length > 0;
 
   return (
-    <div className="sticky top-8 w-full">
+    <section className="sticky top-8 w-full">
       {!hasJobs ? (
         <Card className="w-full">
           <CardHeader>
@@ -67,7 +80,11 @@ export default function JobHistory({ restoreJobs, backupJobs }: Props) {
                   <div className="space-y-3">
                     {backupJobs.length > 0 ? (
                       backupJobs.map((job) => (
-                        <BackupJobItem key={job.id} job={job} />
+                        <BackupJobItem
+                          key={job.id}
+                          job={job}
+                          onDownloadClick={handleCardClick}
+                        />
                       ))
                     ) : (
                       <p className="text-muted-foreground py-8 text-center text-sm">
@@ -97,6 +114,12 @@ export default function JobHistory({ restoreJobs, backupJobs }: Props) {
           </CardContent>
         </Card>
       )}
-    </div>
+
+      <DownloadDialog
+        job={selectedJob}
+        isOpen={selectedJob !== null}
+        onClose={handleCloseDialog}
+      />
+    </section>
   );
 }

@@ -26,7 +26,7 @@ export default function DatabaseCard({ database, backupJobs }: Props) {
   return (
     <Card
       key={database.id}
-      className="flex flex-col overflow-hidden transition-all hover:shadow-sm"
+      className="hover:border-primary flex flex-col overflow-hidden border transition-all hover:scale-[1.01] hover:shadow-sm"
     >
       <CardHeader className="border-border/40 bg-muted/10 border-b pb-4">
         <div className="flex items-start justify-between">
