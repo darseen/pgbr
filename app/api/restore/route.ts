@@ -1,16 +1,16 @@
-import { DEFAULT_BACKUP_FLAGS } from "@/constants";
 import { db } from "@/db";
-import { BackupJob, backupJobsTable, databasesTable } from "@/db/schema";
-import { ApiResponse, BackupFlags } from "@/types";
-import { getPgbrDataPath } from "@/utils";
-import { format } from "date-fns";
+import {
+  backupJobsTable,
+  databasesTable,
+  RestoreJob,
+  restoreJobsTable,
+} from "@/db/schema";
+import { ApiResponse } from "@/types";
 import { and, desc, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import fs from "node:fs/promises";
-import path from "node:path";
-import { buildPgDumpArgs } from "../_utils";
+import { buildPgRestoreArgs } from "../_utils";
 import authorizeRequest from "../_utils/authorize-request";
 
 export async function GET(request: NextRequest) {
@@ -32,11 +32,11 @@ export async function GET(request: NextRequest) {
     if (databaseId) {
       const [database] = await db
         .select()
-        .from(backupJobsTable)
+        .from(restoreJobsTable)
         .where(
           and(
-            eq(backupJobsTable.databaseId, databaseId),
-            eq(backupJobsTable.userId, userId),
+            eq(restoreJobsTable.databaseId, databaseId),
+            eq(restoreJobsTable.userId, userId),
           ),
         );
 
@@ -51,11 +51,11 @@ export async function GET(request: NextRequest) {
     } else if (databaseName) {
       const [database] = await db
         .select()
-        .from(backupJobsTable)
+        .from(restoreJobsTable)
         .where(
           and(
-            eq(backupJobsTable.databaseName, databaseName),
-            eq(backupJobsTable.userId, userId),
+            eq(restoreJobsTable.databaseName, databaseName),
+            eq(restoreJobsTable.userId, userId),
           ),
         );
 
@@ -68,13 +68,13 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({ data: { database }, error: null });
     } else {
-      const backupJobs = await db
+      const restoreJobs = await db
         .select()
-        .from(backupJobsTable)
-        .where(eq(backupJobsTable.userId, userId))
-        .orderBy(desc(backupJobsTable.createdAt));
+        .from(restoreJobsTable)
+        .where(eq(restoreJobsTable.userId, userId))
+        .orderBy(desc(restoreJobsTable.createdAt));
 
-      return NextResponse.json({ data: { backupJobs }, error: null });
+      return NextResponse.json({ data: { restoreJobs }, error: null });
     }
   } catch (error) {
     console.error(error);
@@ -97,16 +97,23 @@ export async function POST(request: NextRequest) {
   const userId = data.user.id;
 
   const body = await request.json();
-  const databaseId = body.databaseId as string | undefined;
-  let flags = body.flags as BackupFlags | undefined;
+  const { databaseId, backupJobId, backupPath, flags } = body;
 
   if (!databaseId) {
     return NextResponse.json(
       { error: { message: "Database ID is required" }, data: null },
       { status: 400 },
     );
-  } else if (!flags) {
-    flags = DEFAULT_BACKUP_FLAGS;
+  }
+
+  if (!backupJobId && !backupPath) {
+    return NextResponse.json(
+      {
+        error: { message: "Backup Job ID or custom path is required" },
+        data: null,
+      },
+      { status: 400 },
+    );
   }
 
   try {
@@ -127,11 +134,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let targetRestorePath = backupPath;
+
+    if (backupJobId) {
+      const [backupJob] = await db
+        .select()
+        .from(backupJobsTable)
+        .where(
+          and(
+            eq(backupJobsTable.id, backupJobId),
+            eq(backupJobsTable.userId, userId),
+          ),
+        );
+
+      if (!backupJob) {
+        return NextResponse.json(
+          { error: { message: "Selected backup job not found" }, data: null },
+          { status: 404 },
+        );
+      }
+      targetRestorePath = backupJob.backupPath;
+    }
+
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
 
-        const sendEvent = (payload: ApiResponse<{ backupJob: BackupJob }>) => {
+        const sendEvent = (
+          payload: ApiResponse<{ restoreJob: RestoreJob }>,
+        ) => {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(payload)}\n\n`),
           );
@@ -140,47 +171,45 @@ export async function POST(request: NextRequest) {
         const jobId = randomUUID();
 
         try {
-          const extensionMap: Record<string, string> = {
-            custom: "backup",
-            plain: "sql",
-            directory: "dir",
-            tar: "tar",
-          };
+          const isPlainSql = targetRestorePath.endsWith(".sql");
+          let command = "pg_restore";
+          let args: string[] = [];
 
-          const fileName = `backup_${format(new Date(), "yyyy-MM-dd hh:mm:ss").replace(" ", "-")}.${extensionMap[flags.format]}`;
-          const backupDir = path.join(getPgbrDataPath(), "backups");
+          if (isPlainSql) {
+            command = "psql";
+            args = ["-d", database.url, "-f", targetRestorePath];
+            if (flags.singleTransaction) args.unshift("-1");
+            if (flags.exitOnError) args.unshift("-v", "ON_ERROR_STOP=1");
+          } else {
+            args = buildPgRestoreArgs(targetRestorePath, flags, database.url);
+          }
 
-          await fs.mkdir(backupDir, { recursive: true });
-          const backupPath = path.join(backupDir, fileName);
-
-          const [backupJob] = await db
-            .insert(backupJobsTable)
+          const [restoreJob] = await db
+            .insert(restoreJobsTable)
             .values({
               id: jobId,
               databaseId: database.id,
               userId,
               databaseName: database.name,
               status: "running",
-              backupPath: backupPath,
+              backupPath: targetRestorePath,
               flags,
             })
             .returning();
 
-          sendEvent({ error: null, data: { backupJob } });
+          sendEvent({ error: null, data: { restoreJob } });
 
-          const args = buildPgDumpArgs(backupPath, flags, database.url);
-
-          const pgDumpProcess = spawn("pg_dump", args, {
+          const restoreProcess = spawn(command, args, {
             stdio: ["ignore", "ignore", "pipe"],
           });
 
           let errorOutput = "";
 
-          pgDumpProcess.stderr.on("data", (data) => {
+          restoreProcess.stderr.on("data", (data) => {
             errorOutput += data.toString();
           });
 
-          pgDumpProcess.on("close", async (code) => {
+          restoreProcess.on("close", async (code) => {
             try {
               const finalStatus = code === 0 ? "completed" : "failed";
 
@@ -188,25 +217,25 @@ export async function POST(request: NextRequest) {
               if (code !== 0) {
                 errorMessage = errorOutput.trim()
                   ? errorOutput.trim()
-                  : `pg_dump exited with code ${code} (No standard error output)`;
+                  : `pg_restore exited with code ${code} (No standard error output)`;
               }
 
               const [updatedJob] = await db
-                .update(backupJobsTable)
+                .update(restoreJobsTable)
                 .set({
                   status: finalStatus,
                   error: errorMessage,
                   completedAt: new Date().toISOString(),
                 })
-                .where(eq(backupJobsTable.id, jobId!))
+                .where(eq(restoreJobsTable.id, jobId!))
                 .returning();
 
               sendEvent({
                 error: null,
-                data: { backupJob: updatedJob },
+                data: { restoreJob: updatedJob },
               });
-            } catch (dbError) {
-              console.error("Failed to update database after pg_dump", dbError);
+            } catch (error) {
+              console.error("Failed to update database after pg_dump", error);
               sendEvent({
                 error: { message: "Failed to save final status" },
                 data: null,
@@ -216,27 +245,27 @@ export async function POST(request: NextRequest) {
             }
           });
 
-          pgDumpProcess.on("error", async (err) => {
+          restoreProcess.on("error", async (error) => {
             sendEvent({
-              error: { message: err.message || "Failed to spawn pg_dump" },
+              error: { message: error.message || `Failed to spawn ${command}` },
               data: null,
             });
 
             await db
-              .update(backupJobsTable)
+              .update(restoreJobsTable)
               .set({
                 status: "failed",
-                error: err.message,
+                error: error.message,
                 completedAt: new Date().toISOString(),
               })
-              .where(eq(backupJobsTable.id, jobId));
+              .where(eq(restoreJobsTable.id, jobId));
 
             controller.close();
           });
         } catch (error: unknown) {
           console.error("Stream initialization error:", error);
           sendEvent({
-            error: { message: "Internal error occurred" },
+            error: { message: "Internal error occurred during restore" },
             data: null,
           });
           controller.close();
@@ -254,7 +283,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error(error);
     return NextResponse.json(
-      { error: { message: "Backup initialization failed" }, data: null },
+      { error: { message: "Restore initialization failed" }, data: null },
       { status: 500 },
     );
   }

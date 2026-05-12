@@ -32,7 +32,9 @@ import { Database } from "@/db/schema";
 import { BackupJob } from "@/db/schema/backup-jobs";
 import type { RestoreFlags } from "@/types";
 import { Settings2, Upload } from "lucide-react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { SubmitEvent, useState } from "react";
+import { SSE } from "sse.js";
 
 interface RestoreFormProps {
   database: Database;
@@ -43,6 +45,7 @@ export default function RestoreForm({
   database,
   backupJobs,
 }: RestoreFormProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -62,7 +65,7 @@ export default function RestoreForm({
     setFlags((f) => ({ ...f, [key]: value }));
   }
 
-  async function handleRestore(e: React.FormEvent) {
+  async function handleRestore(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
@@ -74,10 +77,10 @@ export default function RestoreForm({
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/restore", {
+      const event = new SSE("/api/restore", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        payload: JSON.stringify({
           databaseId: database.id,
           backupJobId: selectedBackup || undefined,
           backupPath: customPath || undefined,
@@ -85,20 +88,34 @@ export default function RestoreForm({
         }),
       });
 
-      const data = await res.json();
+      event.addEventListener("message", (e: object) => {
+        if ("data" in e && typeof e.data === "string") {
+          const response = JSON.parse(e.data);
+          const { error } = response;
 
-      if (!res.ok) {
-        setError(data.error || "Failed to start restore");
-        return;
-      }
+          if (error) {
+            setError(error.message);
+            setIsLoading(false);
+            return;
+          }
 
-      setOpen(false);
-      setSelectedBackup("");
-      setCustomPath("");
-      setFlags(DEFAULT_RESTORE_FLAGS);
+          router.refresh();
+
+          setOpen(false);
+          setSelectedBackup("");
+          setCustomPath("");
+          setFlags(DEFAULT_RESTORE_FLAGS);
+          setError(null);
+          setIsLoading(false);
+        }
+      });
+
+      event.addEventListener("error", () => {
+        setError("An unexpected connection error occurred during restore");
+        setIsLoading(false);
+      });
     } catch {
       setError("An unexpected error occurred");
-    } finally {
       setIsLoading(false);
     }
   }

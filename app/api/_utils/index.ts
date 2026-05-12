@@ -1,4 +1,4 @@
-import { BackupFlags } from "@/types";
+import { BackupFlags, RestoreFlags } from "@/types";
 
 export function buildPgDumpArgs(
   outputPath: string,
@@ -32,5 +32,30 @@ export function buildPgDumpArgs(
   args.push("-f", outputPath);
   args.push(dbUrl);
 
+  return args;
+}
+
+export function buildPgRestoreArgs(
+  targetPath: string,
+  flags: RestoreFlags,
+  dbUrl: string,
+): string[] {
+  const args = ["-d", dbUrl];
+
+  if (flags.clean) args.push("--clean");
+  if (flags.verbose) args.push("--verbose");
+  if (flags.dataOnly) args.push("--data-only");
+  if (flags.schemaOnly) args.push("--schema-only");
+  if (flags.noOwner) args.push("--no-owner");
+  if (flags.noPrivileges) args.push("--no-privileges");
+  if (flags.singleTransaction) args.push("--single-transaction");
+  if (flags.exitOnError) args.push("--exit-on-error");
+  if (flags.ifExists) args.push("--if-exists");
+
+  if (flags.jobs && flags.jobs > 1) {
+    args.push("-j", flags.jobs.toString());
+  }
+
+  args.push(targetPath);
   return args;
 }
