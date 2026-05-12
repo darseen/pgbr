@@ -20,6 +20,18 @@ interface Props {
   backupJobs: BackupJob[];
 }
 
+function maskDatabaseUrl(urlString: string) {
+  try {
+    const parsedUrl = new URL(urlString);
+    if (parsedUrl.password) {
+      parsedUrl.password = "••••••••";
+    }
+    return decodeURIComponent(parsedUrl.toString());
+  } catch {
+    return urlString.replace(/:([^:@/]+)@/, ":••••••••@");
+  }
+}
+
 export default function DatabaseCard({ database, backupJobs }: Props) {
   const backupCount = backupJobs.length;
 
@@ -29,23 +41,25 @@ export default function DatabaseCard({ database, backupJobs }: Props) {
       className="hover:border-primary flex flex-col overflow-hidden border transition-all hover:scale-[1.01] hover:shadow-sm"
     >
       <CardHeader className="border-border/40 bg-muted/10 border-b pb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary/10 flex items-center justify-center rounded-md p-2">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="bg-primary/10 flex shrink-0 items-center justify-center rounded-md p-2">
               <Server className="text-primary size-4" />
             </div>
-            <CardTitle className="text-base font-semibold">
+            <CardTitle className="truncate text-base font-semibold">
               {database.name}
             </CardTitle>
           </div>
-          <div className="flex items-center gap-1">
+
+          <div className="flex shrink-0 items-center gap-1">
             <DatabaseForm database={database} />
             <DeleteDatabaseDialog database={database} />
           </div>
         </div>
+
         <CardDescription className="mt-3">
-          <code className="bg-muted text-muted-foreground block w-full max-w-sm truncate rounded-md px-2 py-1 font-mono text-xs">
-            {database.url}
+          <code className="bg-muted text-muted-foreground block w-full truncate rounded-md px-2 py-1 font-mono text-xs">
+            {maskDatabaseUrl(database.url)}
           </code>
         </CardDescription>
       </CardHeader>
@@ -69,7 +83,7 @@ export default function DatabaseCard({ database, backupJobs }: Props) {
         </div>
       </CardContent>
 
-      <CardFooter className="flex gap-2 py-4">
+      <CardFooter className="flex flex-wrap gap-2 py-4">
         <BackupForm database={database} />
         <RestoreForm database={database} backupJobs={backupJobs} />
       </CardFooter>
