@@ -8,8 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import SeparatorWithText from "@/components/ui/separator-with-text";
 import { BackupJob } from "@/db/schema";
 import { formatDistanceToNow } from "date-fns";
 import getStatusBadge from "./get-status-badge";
@@ -42,9 +42,8 @@ export default function BackupJobCard({ job, onDownloadClick }: Props) {
       </CardHeader>
 
       <CardContent className="space-y-2">
-        <Separator />
+        <SeparatorWithText>Flags</SeparatorWithText>
         <div className="space-y-2">
-          <Label>Flags:</Label>
           <div className="flex flex-wrap gap-1">
             {Object.entries(job.flags).map(([key, value]) => (
               <div key={key} className="flex items-center gap-2">
@@ -57,7 +56,7 @@ export default function BackupJobCard({ job, onDownloadClick }: Props) {
           </div>
         </div>
 
-        <Separator />
+        <Separator className="mt-4" />
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
           <span>
             Started{" "}

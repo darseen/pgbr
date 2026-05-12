@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import SeparatorWithText from "@/components/ui/separator-with-text";
 import { Spinner } from "@/components/ui/spinner";
 import { DEFAULT_RESTORE_FLAGS } from "@/constants";
 import { Database } from "@/db/schema";
@@ -124,7 +125,6 @@ export default function RestoreForm({
             </div>
           )}
 
-          {/* Backup Selection */}
           <div className="space-y-2">
             <Label htmlFor="backup-select">Select Backup</Label>
             {completedBackups.length > 0 ? (
@@ -134,16 +134,15 @@ export default function RestoreForm({
                   setSelectedBackup(v);
                   if (v) setCustomPath("");
                 }}
-                disabled={isLoading}
+                disabled={isLoading || !!customPath}
               >
-                <SelectTrigger id="backup-select">
+                <SelectTrigger id="backup-select" className="w-full">
                   <SelectValue placeholder="Choose a backup..." />
                 </SelectTrigger>
                 <SelectContent>
                   {completedBackups.map((backup) => (
                     <SelectItem key={backup.id} value={backup.id}>
-                      {new Date(backup.startedAt).toLocaleString()} -{" "}
-                      {backup.backupPath?.split("/").pop()}
+                      {backup.backupPath.split("/").pop()}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -155,18 +154,6 @@ export default function RestoreForm({
             )}
           </div>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background text-muted-foreground px-2">
-                Or
-              </span>
-            </div>
-          </div>
-
-          {/* Custom Path */}
           <div className="space-y-2">
             <Label htmlFor="custom-path">Custom Backup Path</Label>
             <Input
@@ -181,7 +168,7 @@ export default function RestoreForm({
             />
           </div>
 
-          {/* Basic Options */}
+          <SeparatorWithText>Options</SeparatorWithText>
           <div className="space-y-2">
             <Label htmlFor="jobs">Parallel Jobs</Label>
             <Input
