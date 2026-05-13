@@ -1,0 +1,1 @@
+ALTER TABLE `databases` ADD `backup_count` integer DEFAULT 0 NOT NULL;

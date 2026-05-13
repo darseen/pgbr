@@ -4,7 +4,7 @@ import { BackupJob, backupJobsTable, databasesTable } from "@/db/schema";
 import { ApiResponse, BackupFlags } from "@/types";
 import { getPgbrDataPath } from "@/utils";
 import { format } from "date-fns";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -191,15 +191,23 @@ export async function POST(request: NextRequest) {
                   : `pg_dump exited with code ${code} (No standard error output)`;
               }
 
-              const [updatedJob] = await db
-                .update(backupJobsTable)
-                .set({
-                  status: finalStatus,
-                  error: errorMessage,
-                  completedAt: new Date().toISOString(),
-                })
-                .where(eq(backupJobsTable.id, jobId!))
-                .returning();
+              const [[updatedJob]] = await Promise.all([
+                db
+                  .update(backupJobsTable)
+                  .set({
+                    status: finalStatus,
+                    error: errorMessage,
+                    completedAt: new Date().toISOString(),
+                  })
+                  .where(eq(backupJobsTable.id, jobId!))
+                  .returning(),
+                db
+                  .update(databasesTable)
+                  .set({
+                    backupCount: sql`${databasesTable.backupCount} + 1`,
+                  })
+                  .where(eq(databasesTable.id, databaseId)),
+              ]);
 
               sendEvent({
                 error: null,

@@ -33,8 +33,6 @@ function maskDatabaseUrl(urlString: string) {
 }
 
 export default function DatabaseCard({ database, backupJobs }: Props) {
-  const backupCount = backupJobs.length;
-
   return (
     <Card
       key={database.id}
@@ -78,7 +76,8 @@ export default function DatabaseCard({ database, backupJobs }: Props) {
             className="text-muted-foreground gap-1.5 text-xs font-normal"
           >
             <History className="size-3" />
-            {backupCount} {backupCount === 1 ? "Backup" : "Backups"}
+            {database.backupCount}{" "}
+            {database.backupCount === 1 ? "Backup" : "Backups"}
           </Badge>
         </div>
       </CardContent>
