@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
             tar: "tar",
           };
 
-          const fileName = `backup_${format(new Date(), "yyyy-MM-dd hh:mm:ss").replace(" ", "-")}.${extensionMap[flags.format]}`;
+          const fileName = `${database.name}_${format(new Date(), "yyyy-MM-dd hh:mm:ss").replace(" ", "-")}.${extensionMap[flags.format]}`;
           const backupDir = path.join(getPgbrDataPath(), "backups");
 
           await fs.mkdir(backupDir, { recursive: true });

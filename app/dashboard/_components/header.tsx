@@ -11,7 +11,8 @@ import { usePathname } from "next/navigation";
 
 const navLinks = [
   { name: "Dashboard", href: "/dashboard" },
-  { name: "Backups", href: "/backups" },
+  { name: "Backups", href: "/dashboard/backups" },
+  { name: "Settings", href: "/dashboard/settings" },
 ];
 
 export default function Header() {

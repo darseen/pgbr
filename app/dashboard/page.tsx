@@ -4,7 +4,6 @@ import auth from "@/utils/auth";
 import { desc, eq } from "drizzle-orm";
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
-import Header from "./_components/header";
 import DatabasesList from "./_components/sections/databases-list";
 import JobHistory from "./_components/sections/job-history";
 
@@ -31,15 +30,11 @@ export default async function Page() {
   ]);
 
   return (
-    <div className="bg-background flex min-h-screen flex-col">
-      <Header />
-
-      <main className="container mx-auto flex-1 px-4 py-8">
-        <div className="grid items-start gap-8 lg:grid-cols-[1fr_400px]">
-          <DatabasesList backupJobs={backupJobs} />
-          <JobHistory restoreJobs={restoreJobs} backupJobs={backupJobs} />
-        </div>
-      </main>
-    </div>
+    <main className="container mx-auto flex-1 px-4 py-8">
+      <div className="grid items-start gap-8 lg:grid-cols-[1fr_400px]">
+        <DatabasesList backupJobs={backupJobs} />
+        <JobHistory restoreJobs={restoreJobs} backupJobs={backupJobs} />
+      </div>
+    </main>
   );
 }

@@ -118,9 +118,7 @@ export default function DatabaseForm({ database }: Props) {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="url">
-              Database String {isEditing && "(leave empty to keep existing)"}
-            </Label>
+            <Label htmlFor="url">Database String</Label>
             <Input
               id="url"
               placeholder="postgresql://user:password@host:5432/database"
