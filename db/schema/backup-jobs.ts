@@ -1,6 +1,6 @@
 import { BackupFlags } from "@/types";
 import { InferSelectModel, relations, sql } from "drizzle-orm";
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { timestamps } from "./_utils/shared-columns";
 import { databasesTable } from "./databases";
 import { usersTable } from "./users";
@@ -25,6 +25,7 @@ export const backupJobsTable = sqliteTable("backup_jobs", {
   backupPath: text().notNull(),
   flags: text({ mode: "json" }).$type<BackupFlags>().notNull(),
   error: text(),
+  size: integer().notNull().default(0),
   startedAt: text()
     .default(sql`(CURRENT_TIMESTAMP)`)
     .notNull(),

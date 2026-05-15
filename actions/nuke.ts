@@ -2,21 +2,17 @@
 
 import { db } from "@/db";
 import { backupJobsTable, databasesTable, restoreJobsTable } from "@/db/schema";
+import { getBackupsPath } from "@/utils";
 import auth from "@/utils/auth";
 import { revalidatePath } from "next/cache";
 import fs from "node:fs/promises";
-import path from "node:path";
 
 export default async function nuke() {
   const user = await auth();
   if (!user) return { data: null, error: { message: "Unauthorized" } };
 
-  if (!process.env.PGBR_DATA) {
-    return { data: null, error: { message: "PGBR_DATA is not set" } };
-  }
-
   try {
-    const backupsPath = path.join(process.env.PGBR_DATA, "backups");
+    const backupsPath = getBackupsPath();
 
     db.transaction((tx) => {
       tx.delete(databasesTable).run();

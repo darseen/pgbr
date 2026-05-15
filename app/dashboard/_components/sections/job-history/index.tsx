@@ -24,13 +24,6 @@ interface Props {
 export default function JobHistory({ restoreJobs, backupJobs }: Props) {
   const [selectedJob, setSelectedJob] = useState<BackupJob | null>(null);
 
-  const handleCardClick = (job: BackupJob) => {
-    setSelectedJob(job);
-  };
-
-  const handleCloseDialog = () => {
-    setSelectedJob(null);
-  };
   const hasJobs = backupJobs.length > 0 || restoreJobs.length > 0;
 
   return (
@@ -83,7 +76,7 @@ export default function JobHistory({ restoreJobs, backupJobs }: Props) {
                         <BackupJobCard
                           key={job.id}
                           job={job}
-                          onDownloadClick={handleCardClick}
+                          onDownloadClick={() => setSelectedJob(job)}
                         />
                       ))
                     ) : (
@@ -118,7 +111,7 @@ export default function JobHistory({ restoreJobs, backupJobs }: Props) {
       <DownloadDialog
         job={selectedJob}
         isOpen={selectedJob !== null}
-        onClose={handleCloseDialog}
+        setSelectedJob={setSelectedJob}
       />
     </section>
   );

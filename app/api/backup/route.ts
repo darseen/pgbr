@@ -2,9 +2,9 @@ import { DEFAULT_BACKUP_FLAGS } from "@/constants";
 import { db } from "@/db";
 import { BackupJob, backupJobsTable, databasesTable } from "@/db/schema";
 import { ApiResponse, BackupFlags } from "@/types";
-import { getPgbrDataPath } from "@/utils";
+import { getBackupsPath } from "@/utils";
 import { format } from "date-fns";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
           };
 
           const fileName = `${database.name}_${format(new Date(), "yyyy-MM-dd hh:mm:ss").replace(" ", "-")}.${extensionMap[flags.format]}`;
-          const backupDir = path.join(getPgbrDataPath(), "backups");
+          const backupDir = getBackupsPath();
 
           await fs.mkdir(backupDir, { recursive: true });
           const backupPath = path.join(backupDir, fileName);
@@ -191,6 +191,12 @@ export async function POST(request: NextRequest) {
                   : `pg_dump exited with code ${code} (No standard error output)`;
               }
 
+              let size = 0;
+              if (code === 0) {
+                const stat = await fs.stat(backupPath);
+                size = stat.size;
+              }
+
               const [[updatedJob]] = await Promise.all([
                 db
                   .update(backupJobsTable)
@@ -198,6 +204,7 @@ export async function POST(request: NextRequest) {
                     status: finalStatus,
                     error: errorMessage,
                     completedAt: new Date().toISOString(),
+                    size,
                   })
                   .where(eq(backupJobsTable.id, jobId!))
                   .returning(),
@@ -263,6 +270,67 @@ export async function POST(request: NextRequest) {
     console.error(error);
     return NextResponse.json(
       { error: { message: "Backup initialization failed" }, data: null },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const { data, error: authError } = await authorizeRequest(request);
+
+  if (authError) {
+    return NextResponse.json(
+      { error: { message: authError.message }, data: null },
+      { status: 401 },
+    );
+  }
+  const userId = data.user.id;
+
+  const body = await request.json();
+  const ids = body.ids as string[] | undefined;
+
+  if (!ids || typeof ids === "string" || ids.length === 0) {
+    return NextResponse.json(
+      { error: { message: "Backup IDs are required" }, data: null },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const backupJobs = await db
+      .select()
+      .from(backupJobsTable)
+      .where(
+        and(
+          inArray(backupJobsTable.id, ids),
+          eq(backupJobsTable.userId, userId),
+        ),
+      );
+
+    if (backupJobs.length === 0) {
+      return NextResponse.json(
+        { error: { message: "No backups found" }, data: null },
+        { status: 404 },
+      );
+    }
+
+    const backupPaths: string[] = [];
+    const backupJobsIds: string[] = [];
+
+    backupJobs.forEach((job) => {
+      backupPaths.push(job.backupPath);
+      backupJobsIds.push(job.id);
+    });
+
+    await db.delete(backupJobsTable).where(inArray(backupJobsTable.id, ids));
+
+    await Promise.all(backupPaths.map((path) => fs.rm(path)));
+
+    return NextResponse.json({ data: { backupJobsIds }, error: null });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: { message: "Internal server error" }, data: null },
       { status: 500 },
     );
   }

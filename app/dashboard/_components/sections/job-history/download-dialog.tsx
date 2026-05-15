@@ -11,14 +11,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { BackupJob } from "@/db/schema";
+import { Dispatch, SetStateAction } from "react";
 
 interface Props {
   job: BackupJob | null;
   isOpen: boolean;
-  onClose: () => void;
+  setSelectedJob: Dispatch<SetStateAction<BackupJob | null>>;
 }
 
-export default function DownloadDialog({ job, isOpen, onClose }: Props) {
+export default function DownloadDialog({ job, isOpen, setSelectedJob }: Props) {
   const handleDownload = () => {
     if (!job) return;
 
@@ -29,11 +30,14 @@ export default function DownloadDialog({ job, isOpen, onClose }: Props) {
     link.click();
     document.body.removeChild(link);
 
-    onClose();
+    setSelectedJob(null);
   };
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <AlertDialog
+      open={isOpen}
+      onOpenChange={(open) => !open && setSelectedJob(null)}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Download Backup</AlertDialogTitle>
@@ -44,7 +48,9 @@ export default function DownloadDialog({ job, isOpen, onClose }: Props) {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel
+            onClick={() => setSelectedJob(null)}
+          ></AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDownload}
             disabled={job?.status !== "completed"}
