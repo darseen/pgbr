@@ -1,6 +1,6 @@
 "use client";
 
-import nuke from "@/actions/nuke";
+import nuke from "@/actions/settings/nuke";
 import {
   AlertDialog,
   AlertDialogAction,

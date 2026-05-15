@@ -48,9 +48,9 @@ export default function DownloadDialog({ job, isOpen, setSelectedJob }: Props) {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel
-            onClick={() => setSelectedJob(null)}
-          ></AlertDialogCancel>
+          <AlertDialogCancel onClick={() => setSelectedJob(null)}>
+            Cancel
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDownload}
             disabled={job?.status !== "completed"}

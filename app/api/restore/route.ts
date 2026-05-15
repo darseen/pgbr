@@ -6,7 +6,7 @@ import {
   restoreJobsTable,
 } from "@/db/schema";
 import { ApiResponse } from "@/types";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -284,6 +284,61 @@ export async function POST(request: NextRequest) {
     console.error(error);
     return NextResponse.json(
       { error: { message: "Restore initialization failed" }, data: null },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const { data, error: authError } = await authorizeRequest(request);
+
+  if (authError) {
+    return NextResponse.json(
+      { error: { message: authError.message }, data: null },
+      { status: 401 },
+    );
+  }
+  const userId = data.user.id;
+
+  const body = await request.json();
+  const { ids } = body;
+
+  if (!ids || !Array.isArray(ids || ids.length === 0)) {
+    return NextResponse.json(
+      { error: { message: "IDs array is required" }, data: null },
+      { status: 400 },
+    );
+  }
+  try {
+    const restoreJobs = await db
+      .select()
+      .from(restoreJobsTable)
+      .where(
+        and(
+          inArray(restoreJobsTable.id, ids),
+          eq(restoreJobsTable.userId, userId),
+        ),
+      );
+
+    if (restoreJobs.length === 0) {
+      return NextResponse.json(
+        { error: { message: "No restore jobs found" }, data: null },
+        { status: 404 },
+      );
+    }
+    const restoreJobsIds: string[] = [];
+
+    restoreJobs.forEach((job) => {
+      restoreJobsIds.push(job.id);
+    });
+
+    await db.delete(restoreJobsTable).where(inArray(restoreJobsTable.id, ids));
+
+    return NextResponse.json({ data: { restoreJobsIds }, error: null });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: { message: "Internal server error" }, data: null },
       { status: 500 },
     );
   }

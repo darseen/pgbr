@@ -289,7 +289,7 @@ export async function DELETE(request: NextRequest) {
   const body = await request.json();
   const ids = body.ids as string[] | undefined;
 
-  if (!ids || typeof ids === "string" || ids.length === 0) {
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return NextResponse.json(
       { error: { message: "Backup IDs are required" }, data: null },
       { status: 400 },
