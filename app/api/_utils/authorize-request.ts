@@ -1,16 +1,14 @@
-import { verifyToken } from "@/utils/jwt";
-import { NextRequest } from "next/server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
-export default async function authorizeRequest(request: NextRequest) {
-  const token = request.cookies.get("token")?.value;
+export default async function authorizeRequest() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
 
-  if (!token) {
+  if (!session) {
     return { error: { message: "Unauthorized" }, data: null };
   }
-  const payload = await verifyToken(token);
-  if (!payload) {
-    return { error: { message: "Unauthorized" }, data: null };
-  }
 
-  return { error: null, data: { user: payload.user } };
+  return { error: null, data: { user: session.user } };
 }

@@ -1,10 +1,11 @@
 "use client";
 
-import signIn from "@/actions/auth/sign-in";
 import logo from "@/assets/images/pgbr.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { authClient } from "@/lib/auth-client";
+import { signInSchema } from "@/lib/zod/sign-in";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { SubmitEvent } from "react";
@@ -15,13 +16,31 @@ export default function SignInForm() {
 
   const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const { error } = await signIn(formData);
 
-    if (error) return toast.error(error.message);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const email = formData.get("email") as string;
+      const password = formData.get("password") as string;
 
-    toast.success("Signed in successfully");
-    router.replace("/dashboard");
+      const result = signInSchema.safeParse({
+        email,
+        password,
+      });
+
+      if (!result.success) return toast.error(result.error.issues[0].message);
+
+      const { error } = await authClient.signIn.email({
+        email: result.data.email,
+        password: result.data.password,
+      });
+
+      if (error) return toast.error(error.message);
+
+      toast.success("Signed in successfully");
+      router.replace("/dashboard");
+    } catch {
+      toast.error("Something went wrong");
+    }
   };
 
   return (
@@ -39,12 +58,12 @@ export default function SignInForm() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="email">Email</Label>
             <Input
-              id="username"
-              name="username"
+              id="email"
+              name="email"
               type="text"
-              placeholder="Enter your username"
+              placeholder="Enter your email"
               required
             />
           </div>

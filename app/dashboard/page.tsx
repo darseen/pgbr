@@ -1,8 +1,9 @@
 import { db } from "@/db";
 import { backupJobsTable, restoreJobsTable } from "@/db/schema";
-import auth from "@/utils/auth";
+import { auth } from "@/lib/auth";
 import { desc, eq } from "drizzle-orm";
 import { Metadata } from "next";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import DatabasesList from "./_components/sections/databases-list";
 import JobHistory from "./_components/sections/job-history";
@@ -12,20 +13,21 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const user = await auth();
-
-  if (!user) redirect("/");
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) redirect("/");
 
   const [backupJobs, restoreJobs] = await Promise.all([
     db
       .select()
       .from(backupJobsTable)
-      .where(eq(backupJobsTable.userId, user.id))
+      .where(eq(backupJobsTable.userId, session.user.id))
       .orderBy(desc(backupJobsTable.createdAt)),
     db
       .select()
       .from(restoreJobsTable)
-      .where(eq(restoreJobsTable.userId, user.id))
+      .where(eq(restoreJobsTable.userId, session.user.id))
       .orderBy(desc(restoreJobsTable.createdAt)),
   ]);
 

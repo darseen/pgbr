@@ -1,13 +1,14 @@
 "use client";
 
-import signOut from "@/actions/auth/sign-out";
 import logo from "@/assets/images/pgbr.png";
 import ThemeToggle from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth-client";
 import { LogOut } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const navLinks = [
   { name: "Dashboard", href: "/dashboard" },
@@ -16,6 +17,7 @@ const navLinks = [
 ];
 
 export default function Header() {
+  const router = useRouter();
   const pathname = usePathname();
 
   return (
@@ -52,7 +54,15 @@ export default function Header() {
           })}
         </nav>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={signOut}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              authClient.signOut();
+              toast.success("Signed out successfully");
+              router.push("/");
+            }}
+          >
             <LogOut className="size-4" />
             Sign out
           </Button>

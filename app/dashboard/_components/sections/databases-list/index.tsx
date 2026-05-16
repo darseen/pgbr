@@ -2,9 +2,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { db } from "@/db";
 import { databasesTable } from "@/db/schema";
 import { BackupJob } from "@/db/schema/backup-jobs";
-import auth from "@/utils/auth";
+import { auth } from "@/lib/auth";
 import { desc, eq } from "drizzle-orm";
 import { Server } from "lucide-react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import DatabaseCard from "./card";
 import DatabaseForm from "./form";
@@ -14,13 +15,15 @@ interface Props {
 }
 
 export default async function DatabasesList({ backupJobs }: Props) {
-  const user = await auth();
-  if (!user) redirect("/");
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) redirect("/");
 
   const databases = await db
     .select()
     .from(databasesTable)
-    .where(eq(databasesTable.userId, user.id))
+    .where(eq(databasesTable.userId, session.user.id))
     .orderBy(desc(databasesTable.createdAt));
 
   return (

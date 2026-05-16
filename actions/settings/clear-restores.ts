@@ -2,20 +2,20 @@
 
 import { db } from "@/db";
 import { restoreJobsTable } from "@/db/schema";
-import auth from "@/utils/auth";
+import { auth } from "@/lib/auth";
 import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
 
 export default async function clearRestores() {
-  const user = await auth();
-
-  if (!user) {
-    return { data: null, error: { message: "Unauthorized" } };
-  }
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) return { data: null, error: { message: "Unauthorized" } };
 
   try {
     await db
       .delete(restoreJobsTable)
-      .where(eq(restoreJobsTable.userId, user.id));
+      .where(eq(restoreJobsTable.userId, session.user.id));
     return { data: null, error: null };
   } catch (error) {
     console.error(error);

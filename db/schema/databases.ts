@@ -1,7 +1,7 @@
 import { InferSelectModel, relations } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { timestamps } from "./_utils/shared-columns";
-import { usersTable } from "./users";
+import { usersTable } from "./auth";
 
 export const databasesTable = sqliteTable("databases", {
   id: text().primaryKey(),

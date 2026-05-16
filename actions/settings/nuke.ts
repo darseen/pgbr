@@ -2,14 +2,17 @@
 
 import { db } from "@/db";
 import { backupJobsTable, databasesTable, restoreJobsTable } from "@/db/schema";
+import { auth } from "@/lib/auth";
 import { getBackupsPath } from "@/utils";
-import auth from "@/utils/auth";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import fs from "node:fs/promises";
 
 export default async function nuke() {
-  const user = await auth();
-  if (!user) return { data: null, error: { message: "Unauthorized" } };
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) return { data: null, error: { message: "Unauthorized" } };
 
   try {
     const backupsPath = getBackupsPath();

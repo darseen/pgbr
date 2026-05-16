@@ -1,1 +1,0 @@
-ALTER TABLE `backup_jobs` ADD `size` integer DEFAULT 0 NOT NULL;

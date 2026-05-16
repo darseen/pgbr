@@ -1,0 +1,29 @@
+import { db } from "@/db";
+import {
+  accountsTable,
+  sessionsTable,
+  usersTable,
+  verificationsTable,
+} from "@/db/schema";
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { username } from "better-auth/plugins";
+
+export const auth = betterAuth({
+  database: drizzleAdapter(db, {
+    provider: "sqlite",
+    schema: {
+      user: usersTable,
+      session: sessionsTable,
+      account: accountsTable,
+      verification: verificationsTable,
+    },
+  }),
+  advanced: { database: { generateId: "uuid" } },
+  secret: process.env.AUTH_SECRET,
+  baseURL: process.env.BASE_URL,
+  emailAndPassword: {
+    enabled: true,
+  },
+  plugins: [username()],
+});

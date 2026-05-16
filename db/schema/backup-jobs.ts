@@ -2,8 +2,8 @@ import { BackupFlags } from "@/types";
 import { InferSelectModel, relations, sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { timestamps } from "./_utils/shared-columns";
+import { usersTable } from "./auth";
 import { databasesTable } from "./databases";
-import { usersTable } from "./users";
 
 export const backupJobStatus = [
   "pending",

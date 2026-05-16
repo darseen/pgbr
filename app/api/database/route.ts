@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import authorizeRequest from "../_utils/authorize-request";
 
 export async function GET(request: NextRequest) {
-  const { data, error: authError } = await authorizeRequest(request);
+  const { data, error: authError } = await authorizeRequest();
 
   if (authError) {
     return NextResponse.json(
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { data, error: authError } = await authorizeRequest(request);
+  const { data, error: authError } = await authorizeRequest();
 
   if (authError) {
     return NextResponse.json(
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const { data, error: authError } = await authorizeRequest(request);
+  const { data, error: authError } = await authorizeRequest();
 
   if (authError) {
     return NextResponse.json(
@@ -146,7 +146,7 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const { data, error: authError } = await authorizeRequest(request);
+  const { data, error: authError } = await authorizeRequest();
 
   if (authError) {
     return NextResponse.json(

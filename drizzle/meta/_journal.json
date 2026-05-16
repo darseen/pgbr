@@ -5,85 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1777818956426,
-      "tag": "0000_curved_forge",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1777819611371,
-      "tag": "0001_yellow_ben_urich",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1777819722962,
-      "tag": "0002_quick_kabuki",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1777912688261,
-      "tag": "0003_awesome_dexter_bennett",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1777992278275,
-      "tag": "0004_amused_famine",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1777992438737,
-      "tag": "0005_graceful_wendell_vaughn",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1777993768478,
-      "tag": "0006_jittery_raza",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1778422232442,
-      "tag": "0007_normal_marvel_boy",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1778449705573,
-      "tag": "0008_pink_chat",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "6",
-      "when": 1778615570143,
-      "tag": "0009_wide_spencer_smythe",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "6",
-      "when": 1778622207614,
-      "tag": "0010_complete_jasper_sitwell",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "6",
-      "when": 1778785906396,
-      "tag": "0011_windy_shinobi_shaw",
+      "when": 1778945848751,
+      "tag": "0000_tearful_reaper",
       "breakpoints": true
     }
   ]

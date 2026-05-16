@@ -1,8 +1,9 @@
 import { db } from "@/db";
 import { backupJobsTable } from "@/db/schema";
-import auth from "@/utils/auth";
+import { auth } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import JSZip from "jszip";
+import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createReadStream } from "node:fs";
 import { open, readdir, stat } from "node:fs/promises";
@@ -13,8 +14,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await auth();
-  if (!user) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
