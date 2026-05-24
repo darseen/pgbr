@@ -1,0 +1,22 @@
+CREATE TABLE `migration_jobs` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text,
+	`source_database_id` text,
+	`target_database_id` text,
+	`source_database_url` text,
+	`target_database_url` text,
+	`source_database_name` text,
+	`target_database_name` text,
+	`started_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	`completed_at` text,
+	`error` text,
+	`backup_flags` text NOT NULL,
+	`restore_flags` text NOT NULL,
+	`status` text NOT NULL,
+	`size` integer DEFAULT 0 NOT NULL,
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	`updated_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`source_database_id`) REFERENCES `databases`(`id`) ON UPDATE no action ON DELETE set null,
+	FOREIGN KEY (`target_database_id`) REFERENCES `databases`(`id`) ON UPDATE no action ON DELETE set null
+);

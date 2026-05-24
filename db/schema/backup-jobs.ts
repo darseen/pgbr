@@ -45,3 +45,6 @@ export const backupJobsRelations = relations(backupJobsTable, ({ one }) => ({
 }));
 
 export type BackupJob = InferSelectModel<typeof backupJobsTable>;
+export type BackupJobStatus = InferSelectModel<
+  typeof backupJobsTable
+>["status"];

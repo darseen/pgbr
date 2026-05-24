@@ -17,22 +17,23 @@ export default async function Page() {
     headers: await headers(),
   });
   if (!session) redirect("/");
+  const userId = session.user.id;
 
   const [backupJobs, restoreJobs] = await Promise.all([
     db
       .select()
       .from(backupJobsTable)
-      .where(eq(backupJobsTable.userId, session.user.id))
+      .where(eq(backupJobsTable.userId, userId))
       .orderBy(desc(backupJobsTable.createdAt)),
     db
       .select()
       .from(restoreJobsTable)
-      .where(eq(restoreJobsTable.userId, session.user.id))
+      .where(eq(restoreJobsTable.userId, userId))
       .orderBy(desc(restoreJobsTable.createdAt)),
   ]);
 
   return (
-    <main className="container mx-auto flex-1 px-4 py-8">
+    <main className="animate-in fade-in slide-in-from-bottom-4 container mx-auto flex-1 px-4 py-8 duration-500">
       <div className="grid items-start gap-8 lg:grid-cols-[1fr_400px]">
         <DatabasesList backupJobs={backupJobs} />
         <JobHistory restoreJobs={restoreJobs} backupJobs={backupJobs} />

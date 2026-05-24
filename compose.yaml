@@ -1,18 +1,4 @@
 services:
-  postgres:
-    image: postgres:18-alpine
-    container_name: pgbr_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: password
-      PGDATA: /var/lib/postgresql/data
-      POSTGRES_DB: pgbr_test
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres:/var/lib/postgresql/data
-
   pgbr:
     build:
       context: .
@@ -21,16 +7,20 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://root:password@postgres:5432/pgbr_test
+      - DATABASE_URL=postgresql://root:password@postgres:5432/pgbr_db
       - PGBR_DATA=/var/lib/pgbr/data
       - NEXT_TELEMETRY_DISABLED=1
       - BASE_URL=http://localhost:3000
-      - AUTH_SECRET=secret
+      - AUTH_SECRET=3nC4dwLT/+COH6g+CqXwzZI6p6MmB3/5g0xvWzROYFc=
     volumes:
       - pgbr:/var/lib/pgbr/data
 
     depends_on:
-      postgres:
+      pgbr_db:
+        condition: service_started
+      test_db1:
+        condition: service_started
+      test_db2:
         condition: service_started
 
     develop:
@@ -48,6 +38,43 @@ services:
         - action: rebuild
           path: pnpm-lock.yaml
 
+  pgbr_db:
+    image: postgres:18-alpine
+    container_name: pgbr_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - pgbr_db:/var/lib/postgresql/data
+
+  test_db1:
+    image: postgres:18-alpine
+    container_name: test_db1
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_DB: pgbr_test
+    volumes:
+      - test_db1:/var/lib/postgresql/data
+
+  test_db2:
+    image: postgres:18-alpine
+    container_name: test_db2
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_DB: pgbr_test
+    volumes:
+      - test_db2:/var/lib/postgresql/data
+
 volumes:
   pgbr:
-  postgres:
+  pgbr_db:
+  test_db1:
+  test_db2:

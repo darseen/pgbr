@@ -88,6 +88,19 @@ export default function BackupForm({ database }: BackupFormProps) {
           setIsLoading(false);
         }
       });
+      event.addEventListener("error", (e: object) => {
+        if ("data" in e && typeof e.data === "string") {
+          const response = JSON.parse(e.data) as ApiResponse<null>;
+          const { error } = response;
+          console.log(response);
+
+          if (error) {
+            setError(error.message);
+            setIsLoading(false);
+            return;
+          }
+        }
+      });
     } catch {
       setError("An unexpected error occurred");
     } finally {

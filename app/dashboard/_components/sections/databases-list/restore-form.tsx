@@ -30,7 +30,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { DEFAULT_RESTORE_FLAGS } from "@/constants";
 import { Database } from "@/db/schema";
 import { BackupJob } from "@/db/schema/backup-jobs";
-import type { RestoreFlags } from "@/types";
+import type { ApiResponse, RestoreFlags } from "@/types";
 import { Settings2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { SubmitEvent, useState } from "react";
@@ -95,7 +95,6 @@ export default function RestoreForm({
 
           if (error) {
             setError(error.message);
-            setIsLoading(false);
             return;
           }
 
@@ -106,16 +105,23 @@ export default function RestoreForm({
           setCustomPath("");
           setFlags(DEFAULT_RESTORE_FLAGS);
           setError(null);
-          setIsLoading(false);
         }
       });
 
-      event.addEventListener("error", () => {
-        setError("An unexpected connection error occurred during restore");
-        setIsLoading(false);
+      event.addEventListener("error", (e: object) => {
+        if ("data" in e && typeof e.data === "string") {
+          const response = JSON.parse(e.data) as ApiResponse<null>;
+          const { error } = response;
+
+          if (error) {
+            setError(error.message);
+            return;
+          }
+        }
       });
     } catch {
       setError("An unexpected error occurred");
+    } finally {
       setIsLoading(false);
     }
   }

@@ -7,10 +7,13 @@ import {
 } from "@/components/ui/card";
 import { db } from "@/db";
 import { backupJobsTable } from "@/db/schema";
+import { auth } from "@/lib/auth";
 import { formatFileSize } from "@/utils";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { FileArchive, HardDrive, Loader2 } from "lucide-react";
 import { Metadata } from "next";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import BackupsTable from "./_components/table";
 
 export const metadata: Metadata = {
@@ -18,9 +21,16 @@ export const metadata: Metadata = {
 };
 
 export default async function BackupsPage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+  if (!session) redirect("/");
+  const userId = session.user.id;
+
   const backupJobs = await db
     .select()
     .from(backupJobsTable)
+    .where(eq(backupJobsTable.userId, userId))
     .orderBy(desc(backupJobsTable.createdAt));
 
   const completedBackups = backupJobs.filter((j) => j.status === "completed");
@@ -31,7 +41,7 @@ export default async function BackupsPage() {
   );
 
   return (
-    <div className="bg-background min-h-screen">
+    <div className="bg-background animate-in fade-in slide-in-from-bottom-4 min-h-screen duration-500">
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8 grid gap-4 sm:grid-cols-3">
           <Card>

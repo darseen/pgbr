@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { backupJobsTable } from "./backup-jobs";
 import { databasesTable } from "./databases";
+import { migrationJobsTable } from "./migration-jobs";
 import { restoreJobsTable } from "./restore-jobs";
 
 export const usersTable = sqliteTable("users", {
@@ -98,6 +99,7 @@ export const usersTableRelations = relations(usersTable, ({ many }) => ({
   databases: many(databasesTable),
   backupJobs: many(backupJobsTable),
   restoreJobs: many(restoreJobsTable),
+  migrationJobs: many(migrationJobsTable),
 }));
 
 export const sessionRelations = relations(sessionsTable, ({ one }) => ({

@@ -44,3 +44,6 @@ export const restoreJobsRelations = relations(restoreJobsTable, ({ one }) => ({
 }));
 
 export type RestoreJob = InferSelectModel<typeof restoreJobsTable>;
+export type RestoreJobStatus = InferSelectModel<
+  typeof restoreJobsTable
+>["status"];

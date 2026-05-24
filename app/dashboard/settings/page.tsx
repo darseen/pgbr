@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return (
-    <div className="bg-background min-h-screen">
+    <div className="bg-background animate-in fade-in slide-in-from-bottom-4 min-h-screen duration-500">
       <main className="container mx-auto max-w-2xl px-4 py-8">
         <div className="space-y-6">
           <div>

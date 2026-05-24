@@ -1,7 +1,7 @@
 import { BackupFlags, RestoreFlags } from "@/types";
 
 export function buildPgDumpArgs(
-  outputPath: string,
+  outputPath: string | null,
   flags: BackupFlags,
   dbUrl: string,
 ) {
@@ -29,7 +29,7 @@ export function buildPgDumpArgs(
     flags.includeTables.forEach((t) => args.push("-t", t));
   }
 
-  args.push("-f", outputPath);
+  if (outputPath) args.push("-f", outputPath);
   args.push(dbUrl);
 
   return args;

@@ -1,3 +1,5 @@
+import { MigrationJobStatus } from "@/db/schema";
+
 export interface BackupFlags {
   format: "custom" | "plain" | "directory" | "tar";
   compress: boolean;
@@ -35,4 +37,12 @@ type SuccessResponse<T> = {
 type ErrorResponse = {
   data: null;
   error: { message: string };
+};
+
+export type MigrationStep = "configure" | "migrating" | "complete";
+
+export type MigrationState = {
+  currentStep: MigrationStep;
+  error?: string | null;
+  status: MigrationJobStatus;
 };
