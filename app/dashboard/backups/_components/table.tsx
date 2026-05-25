@@ -1,5 +1,4 @@
 "use client";
-"use no memo";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,7 +38,7 @@ import {
 } from "@tanstack/react-table";
 import { format, formatDistanceToNow } from "date-fns";
 import { Download, FileArchive, Search, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import getStatusBadge from "../../_components/sections/job-history/get-status-badge";
 import getStatusIcon from "../../_components/sections/job-history/get-status-icon";
 import DeleteBackupDialog from "./delete-dialog";
@@ -54,9 +53,9 @@ export default function BackupsTable({ backupJobs }: Props) {
   const [rowSelection, setRowSelection] = useState({});
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const uniqueDatabases = useMemo(() => {
+  const uniqueDatabases = () => {
     return Array.from(new Set(backupJobs.map((job) => job.databaseName)));
-  }, [backupJobs]);
+  };
 
   const handleDownload = (jobId: string) => {
     if (!jobId) return;
@@ -68,142 +67,137 @@ export default function BackupsTable({ backupJobs }: Props) {
     document.body.removeChild(link);
   };
 
-  const columns = useMemo<ColumnDef<BackupJob>[]>(
-    () => [
-      {
-        id: "select",
-        header: ({ table }) => (
-          <Checkbox
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() && "indeterminate")
-            }
-            onCheckedChange={(value) =>
-              table.toggleAllPageRowsSelected(!!value)
-            }
-            aria-label="Select all"
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Select row"
-          />
-        ),
-        enableSorting: false,
-        enableHiding: false,
+  const columns: ColumnDef<BackupJob>[] = [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as string;
+        return (
+          <div className="flex items-center gap-2">
+            {getStatusIcon(status)}
+            <span className="inline">{getStatusBadge(status)}</span>
+          </div>
+        );
       },
-      {
-        accessorKey: "status",
-        header: "Status",
-        cell: ({ row }) => {
-          const status = row.getValue("status") as string;
-          return (
-            <div className="flex items-center gap-2">
-              {getStatusIcon(status)}
-              <span className="inline">{getStatusBadge(status)}</span>
-            </div>
-          );
-        },
+    },
+    {
+      accessorKey: "databaseName",
+      header: "Database",
+      cell: ({ row }) => (
+        <span className="font-medium">{row.getValue("databaseName")}</span>
+      ),
+    },
+    {
+      accessorKey: "backupPath",
+      header: () => <span className="table-cell">File Path</span>,
+      cell: ({ row }) => (
+        <code className="bg-muted inline-block max-w-50 truncate rounded px-2 py-1 font-mono text-xs">
+          {(row.getValue("backupPath") as string) || "-"}
+        </code>
+      ),
+    },
+    {
+      id: "size",
+      accessorFn: (row) => row.size,
+      header: () => <span className="table-cell">Size</span>,
+      cell: ({ row }) => {
+        const status = row.getValue("status");
+        const size = Number(row.original.size) || 0;
+        return (
+          <span className="inline">
+            {status === "completed" ? formatFileSize(size) : "-"}
+          </span>
+        );
       },
-      {
-        accessorKey: "databaseName",
-        header: "Database",
-        cell: ({ row }) => (
-          <span className="font-medium">{row.getValue("databaseName")}</span>
-        ),
-      },
-      {
-        accessorKey: "backupPath",
-        header: () => <span className="table-cell">File Path</span>,
-        cell: ({ row }) => (
-          <code className="bg-muted inline-block max-w-50 truncate rounded px-2 py-1 font-mono text-xs">
-            {(row.getValue("backupPath") as string) || "-"}
-          </code>
-        ),
-      },
-      {
-        id: "size",
-        accessorFn: (row) => row.size,
-        header: () => <span className="table-cell">Size</span>,
-        cell: ({ row }) => {
-          const status = row.getValue("status");
-          const size = Number(row.original.size) || 0;
-          return (
-            <span className="inline">
-              {status === "completed" ? formatFileSize(size) : "-"}
+    },
+    {
+      id: "format",
+      accessorFn: (row) => row.flags?.format,
+      header: () => <span className="table-cell">Format</span>,
+      cell: ({ row }) => (
+        <Badge variant="outline" className="inline-flex text-xs">
+          {(row.getValue("format") as string) || "unknown"}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "startedAt",
+      header: () => <span className="table-cell">Created</span>,
+      cell: ({ row }) => {
+        const date = new Date((row.getValue("startedAt") + "Z") as string);
+        return (
+          <div className="block">
+            <span className="text-muted-foreground block text-sm">
+              {format(date, "MMM d, yyyy")}
             </span>
-          );
-        },
+            <span className="text-muted-foreground block text-xs">
+              {formatDistanceToNow(date, { addSuffix: true })}
+            </span>
+          </div>
+        );
       },
-      {
-        id: "format",
-        accessorFn: (row) => row.flags?.format,
-        header: () => <span className="table-cell">Format</span>,
-        cell: ({ row }) => (
-          <Badge variant="outline" className="inline-flex text-xs">
-            {(row.getValue("format") as string) || "unknown"}
-          </Badge>
-        ),
-      },
-      {
-        accessorKey: "startedAt",
-        header: () => <span className="table-cell">Created</span>,
-        cell: ({ row }) => {
-          const date = new Date((row.getValue("startedAt") + "Z") as string);
-          return (
-            <div className="block">
-              <span className="text-muted-foreground block text-sm">
-                {format(date, "MMM d, yyyy")}
-              </span>
-              <span className="text-muted-foreground block text-xs">
-                {formatDistanceToNow(date, { addSuffix: true })}
-              </span>
-            </div>
-          );
-        },
-      },
-      {
-        id: "actions",
-        header: () => <div className="text-right">Actions</div>,
-        cell: ({ row }) => {
-          const job = row.original;
-          return (
-            <div className="flex items-center justify-end gap-1">
-              {job.status === "completed" && (
+    },
+    {
+      id: "actions",
+      header: () => <div className="text-right">Actions</div>,
+      cell: ({ row }) => {
+        const job = row.original;
+        return (
+          <div className="flex items-center justify-end gap-1">
+            {job.status === "completed" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleDownload(job.id)}
+                title="Download backup"
+              >
+                <Download className="size-4" />
+              </Button>
+            )}
+            <DeleteBackupDialog
+              selectedBackups={new Set([job.id])}
+              setSelectedBackups={() => row.toggleSelected(false)}
+              isDeleting={isDeleting}
+              setIsDeleting={setIsDeleting}
+              trigger={
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => handleDownload(job.id)}
-                  title="Download backup"
+                  className="text-destructive hover:text-destructive"
+                  title="Delete backup"
                 >
-                  <Download className="size-4" />
+                  <Trash2 className="size-4" />
                 </Button>
-              )}
-              <DeleteBackupDialog
-                selectedBackups={new Set([job.id])}
-                setSelectedBackups={() => row.toggleSelected(false)}
-                isDeleting={isDeleting}
-                setIsDeleting={setIsDeleting}
-                trigger={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:text-destructive"
-                    title="Delete backup"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                }
-              />
-            </div>
-          );
-        },
+              }
+            />
+          </div>
+        );
       },
-    ],
-    [isDeleting],
-  );
+    },
+  ];
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -287,7 +281,7 @@ export default function BackupsTable({ backupJobs }: Props) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Databases</SelectItem>
-              {uniqueDatabases.map((db) => (
+              {uniqueDatabases().map((db) => (
                 <SelectItem key={db} value={db}>
                   {db}
                 </SelectItem>
