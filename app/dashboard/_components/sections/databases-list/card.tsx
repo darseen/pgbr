@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -9,30 +10,26 @@ import {
 } from "@/components/ui/card";
 import { Database } from "@/db/schema";
 import { BackupJob } from "@/db/schema/backup-jobs";
-import { CalendarDays, History, Server } from "lucide-react";
+import { CalendarDays, History, Pencil, Server, Trash2 } from "lucide-react";
+import { Dispatch, SetStateAction } from "react";
 import BackupForm from "./backup-form";
-import DeleteDatabaseDialog from "./delete-dialog";
-import DatabaseForm from "./form";
 import RestoreForm from "./restore-form";
 
 interface Props {
   database: Database;
   backupJobs: BackupJob[];
+  setSelectedDatabase: Dispatch<SetStateAction<Database | null>>;
+  setOpenDeleteDialog: Dispatch<SetStateAction<boolean>>;
+  setOpenAddDatabaseDialog: Dispatch<SetStateAction<boolean>>;
 }
 
-function maskDatabaseUrl(urlString: string) {
-  try {
-    const parsedUrl = new URL(urlString);
-    if (parsedUrl.password) {
-      parsedUrl.password = "••••••••";
-    }
-    return decodeURIComponent(parsedUrl.toString());
-  } catch {
-    return urlString.replace(/:([^:@/]+)@/, ":••••••••@");
-  }
-}
-
-export default function DatabaseCard({ database, backupJobs }: Props) {
+export default function DatabaseCard({
+  database,
+  backupJobs,
+  setSelectedDatabase,
+  setOpenAddDatabaseDialog,
+  setOpenDeleteDialog,
+}: Props) {
   return (
     <Card
       key={database.id}
@@ -48,10 +45,30 @@ export default function DatabaseCard({ database, backupJobs }: Props) {
               {database.name}
             </CardTitle>
           </div>
-
           <div className="flex shrink-0 items-center gap-1">
-            <DatabaseForm database={database} />
-            <DeleteDatabaseDialog database={database} />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                setSelectedDatabase(database);
+                setOpenAddDatabaseDialog(true);
+              }}
+            >
+              <Pencil className="size-4" />
+              <span className="sr-only">Edit database</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                setSelectedDatabase(database);
+                setOpenDeleteDialog(true);
+              }}
+            >
+              <Trash2 className="text-destructive size-4" />
+              <span className="sr-only">Delete database</span>
+            </Button>
           </div>
         </div>
 
@@ -88,4 +105,16 @@ export default function DatabaseCard({ database, backupJobs }: Props) {
       </CardFooter>
     </Card>
   );
+}
+
+function maskDatabaseUrl(urlString: string) {
+  try {
+    const parsedUrl = new URL(urlString);
+    if (parsedUrl.password) {
+      parsedUrl.password = "••••••••";
+    }
+    return decodeURIComponent(parsedUrl.toString());
+  } catch {
+    return urlString.replace(/:([^:@/]+)@/, ":••••••••@");
+  }
 }

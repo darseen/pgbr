@@ -8,25 +8,30 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Database } from "@/db/schema";
 import { ApiResponse } from "@/types";
-import { Pencil, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { SubmitEvent, useState } from "react";
+import { Dispatch, SetStateAction, SubmitEvent, useState } from "react";
 import { toast } from "sonner";
 
 interface Props {
-  database?: Database;
+  database?: Database | null;
+  open: boolean;
+  setOpen: Dispatch<SetStateAction<boolean>>;
+  setSelectedDatabase: Dispatch<SetStateAction<Database | null>>;
 }
 
-export default function DatabaseForm({ database }: Props) {
+export default function AddDatabaseDialog({
+  database,
+  open,
+  setOpen,
+  setSelectedDatabase,
+}: Props) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<Pick<Database, "name" | "url">>({
     name: database?.name || "",
@@ -35,7 +40,12 @@ export default function DatabaseForm({ database }: Props) {
 
   const isEditing = !!database;
 
-  async function handleSubmit(e: SubmitEvent<HTMLFormElement>) {
+  const toggleOpen = (open: boolean) => {
+    setOpen(open);
+    if (!open) setSelectedDatabase(null);
+  };
+
+  const handleSubmit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
 
@@ -58,7 +68,7 @@ export default function DatabaseForm({ database }: Props) {
         return;
       }
 
-      setOpen(false);
+      toggleOpen(false);
       router.refresh();
       toast.success(
         isEditing
@@ -75,23 +85,10 @@ export default function DatabaseForm({ database }: Props) {
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {isEditing ? (
-          <Button variant="ghost" size="icon-sm">
-            <Pencil className="size-4" />
-            <span className="sr-only">Edit database</span>
-          </Button>
-        ) : (
-          <Button>
-            <Plus className="size-4" />
-            Add Database
-          </Button>
-        )}
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={toggleOpen}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
@@ -108,7 +105,7 @@ export default function DatabaseForm({ database }: Props) {
             <Label htmlFor="conn-name">Database Name</Label>
             <Input
               id="conn-name"
-              placeholder="e.g., Production DB"
+              placeholder="Production DB"
               value={formData.name}
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
@@ -137,7 +134,7 @@ export default function DatabaseForm({ database }: Props) {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setOpen(false)}
+              onClick={() => toggleOpen(false)}
               disabled={isLoading}
             >
               Cancel

@@ -8,27 +8,38 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { Trash2 } from "lucide-react";
 
 import { Database } from "@/db/schema";
 import { ApiResponse } from "@/types";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
 import { toast } from "sonner";
 
 interface Props {
-  database: Database;
+  database: Database | null;
+  open: boolean;
+  setOpen: Dispatch<SetStateAction<boolean>>;
+  setSelectedDatabase: Dispatch<SetStateAction<Database | null>>;
 }
 
-export default function DeleteDatabaseDialog({ database }: Props) {
+export default function DeleteDatabaseDialog({
+  database,
+  open,
+  setOpen,
+  setSelectedDatabase,
+}: Props) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  async function handleDelete() {
+  const toggleOpen = (open: boolean) => {
+    setOpen(open);
+    if (!open) setSelectedDatabase(null);
+  };
+
+  const handleDelete = async () => {
+    if (!database) return;
     setIsLoading(true);
 
     try {
@@ -42,7 +53,7 @@ export default function DeleteDatabaseDialog({ database }: Props) {
         return;
       }
 
-      setOpen(false);
+      toggleOpen(false);
 
       router.refresh();
       toast.success("Database deleted successfully");
@@ -51,28 +62,22 @@ export default function DeleteDatabaseDialog({ database }: Props) {
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon-sm">
-          <Trash2 className="text-destructive size-4" />
-          <span className="sr-only">Delete database</span>
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={toggleOpen}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Delete Database</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete &quot;{database.name}&quot;? This
+            Are you sure you want to delete &quot;{database?.name}&quot;? This
             action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={() => setOpen(false)}
+            onClick={() => toggleOpen(false)}
             disabled={isLoading}
           >
             Cancel

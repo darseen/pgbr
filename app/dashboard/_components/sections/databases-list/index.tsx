@@ -1,33 +1,29 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { db } from "@/db";
-import { databasesTable } from "@/db/schema";
+import { Database } from "@/db/schema";
 import { BackupJob } from "@/db/schema/backup-jobs";
-import { auth } from "@/lib/auth";
-import { desc, eq } from "drizzle-orm";
-import { Server } from "lucide-react";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { Plus, Server } from "lucide-react";
+import { useState } from "react";
+import AddDatabaseDialog from "./add-dialog";
 import DatabaseCard from "./card";
-import DatabaseForm from "./form";
+import DeleteDatabaseDialog from "./delete-dialog";
 
 interface Props {
   backupJobs: BackupJob[];
+  databases: Database[];
 }
 
-export default async function DatabasesList({ backupJobs }: Props) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-  if (!session) redirect("/");
-
-  const databases = await db
-    .select()
-    .from(databasesTable)
-    .where(eq(databasesTable.userId, session.user.id))
-    .orderBy(desc(databasesTable.createdAt));
+export default function DatabasesList({ backupJobs, databases }: Props) {
+  const [selectedDatabase, setSelectedDatabase] = useState<Database | null>(
+    null,
+  );
+  const [openAddDatabaseDialog, setOpenAddDatabaseDialog] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
   return (
-    <div className="space-y-6">
+    <section className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Databases</h1>
@@ -35,7 +31,10 @@ export default async function DatabasesList({ backupJobs }: Props) {
             Manage your PostgreSQL databases
           </p>
         </div>
-        <DatabaseForm />
+        <Button onClick={() => setOpenAddDatabaseDialog(true)}>
+          <Plus className="size-4" />
+          Add Database
+        </Button>
       </div>
 
       {databases.length === 0 ? (
@@ -49,7 +48,6 @@ export default async function DatabasesList({ backupJobs }: Props) {
               Add your first PostgreSQL database to start managing automated
               backups and restores.
             </p>
-            <DatabaseForm />
           </CardContent>
         </Card>
       ) : (
@@ -59,10 +57,27 @@ export default async function DatabasesList({ backupJobs }: Props) {
               key={database.id}
               database={database}
               backupJobs={backupJobs}
+              setSelectedDatabase={setSelectedDatabase}
+              setOpenDeleteDialog={setOpenDeleteDialog}
+              setOpenAddDatabaseDialog={setOpenAddDatabaseDialog}
             />
           ))}
         </div>
       )}
-    </div>
+
+      <AddDatabaseDialog
+        key={selectedDatabase?.id ?? "new"} // force re-render when selectedDatabase changes to update form data
+        open={openAddDatabaseDialog}
+        setOpen={setOpenAddDatabaseDialog}
+        setSelectedDatabase={setSelectedDatabase}
+        database={selectedDatabase}
+      />
+      <DeleteDatabaseDialog
+        open={openDeleteDialog}
+        setOpen={setOpenDeleteDialog}
+        setSelectedDatabase={setSelectedDatabase}
+        database={selectedDatabase}
+      />
+    </section>
   );
 }
