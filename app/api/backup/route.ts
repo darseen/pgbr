@@ -318,7 +318,7 @@ export async function DELETE(request: NextRequest) {
     const backupJobsIds: string[] = [];
 
     backupJobs.forEach((job) => {
-      backupPaths.push(job.backupPath);
+      if (job.status === "completed") backupPaths.push(job.backupPath);
       backupJobsIds.push(job.id);
     });
 
