@@ -9,19 +9,25 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BackupJob, RestoreJob } from "@/db/schema";
-import { Download, Upload } from "lucide-react";
+import { BackupJob, MigrationJob, RestoreJob } from "@/db/schema";
+import { ArrowDownUp, Download, Upload } from "lucide-react";
 import { useState } from "react";
 import BackupJobCard from "./backup-job-card";
 import DownloadDialog from "./download-dialog";
+import MigrationJobCard from "./migration-job-card";
 import RestoreJobItem from "./restore-job-card";
 
 interface Props {
   restoreJobs: RestoreJob[];
   backupJobs: BackupJob[];
+  migrationJobs: MigrationJob[];
 }
 
-export default function JobHistory({ restoreJobs, backupJobs }: Props) {
+export default function JobHistory({
+  restoreJobs,
+  backupJobs,
+  migrationJobs,
+}: Props) {
   const [selectedJob, setSelectedJob] = useState<BackupJob | null>(null);
 
   const hasJobs = backupJobs.length > 0 || restoreJobs.length > 0;
@@ -33,7 +39,7 @@ export default function JobHistory({ restoreJobs, backupJobs }: Props) {
           <CardHeader>
             <CardTitle>Job History</CardTitle>
             <CardDescription>
-              Your backup and restore operations will appear here.
+              Your backup, restore, and migration operations will appear here.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -43,7 +49,9 @@ export default function JobHistory({ restoreJobs, backupJobs }: Props) {
                 <Upload className="size-6 opacity-50" />
               </div>
               <p className="text-foreground font-medium">No jobs yet</p>
-              <p className="text-sm">Run a backup or restore to see history</p>
+              <p className="text-sm">
+                Run a backup, restore, or migrate to see history
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -57,14 +65,18 @@ export default function JobHistory({ restoreJobs, backupJobs }: Props) {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="backups" className="w-full">
-              <TabsList className="mb-4 grid w-full grid-cols-2">
+              <TabsList className="mb-4 grid w-full grid-cols-3">
                 <TabsTrigger value="backups">
-                  <Download className="mr-2 size-4" />
-                  Backups ({backupJobs.length})
+                  <Download className="size-4" />
+                  Backups
                 </TabsTrigger>
                 <TabsTrigger value="restores">
-                  <Upload className="mr-2 size-4" />
-                  Restores ({restoreJobs.length})
+                  <Upload className="size-4" />
+                  Restores
+                </TabsTrigger>
+                <TabsTrigger value="migrations">
+                  <ArrowDownUp className="size-4" />
+                  Migrations
                 </TabsTrigger>
               </TabsList>
 
@@ -98,6 +110,22 @@ export default function JobHistory({ restoreJobs, backupJobs }: Props) {
                     ) : (
                       <p className="text-muted-foreground py-8 text-center text-sm">
                         No restore jobs yet
+                      </p>
+                    )}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="migrations" className="mt-0">
+                <ScrollArea className="h-100 pr-4 lg:h-[calc(100vh-20rem)]">
+                  <div className="space-y-3">
+                    {migrationJobs.length > 0 ? (
+                      migrationJobs.map((job) => (
+                        <MigrationJobCard key={job.id} job={job} />
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground py-8 text-center text-sm">
+                        No migration jobs yet
                       </p>
                     )}
                   </div>
