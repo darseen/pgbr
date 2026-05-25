@@ -9,19 +9,20 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { Loader2, Trash2 } from "lucide-react";
+import { ApiResponse } from "@/types";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ReactNode } from "react";
+import { Dispatch, SetStateAction } from "react";
+import { toast } from "sonner";
 
 interface Props {
   selectedBackups: Set<string>;
-  setSelectedBackups: (v: Set<string>) => void;
+  setSelectedBackups: (value: Set<string>) => void;
   isDeleting: boolean;
-  setIsDeleting: (v: boolean) => void;
-  trigger?: ReactNode;
+  setIsDeleting: Dispatch<SetStateAction<boolean>>;
+  open: boolean;
+  setOpen: Dispatch<SetStateAction<boolean>>;
 }
 
 export default function DeleteBackupDialog({
@@ -29,37 +30,37 @@ export default function DeleteBackupDialog({
   setSelectedBackups,
   isDeleting,
   setIsDeleting,
-  trigger,
+  open,
+  setOpen,
 }: Props) {
   const router = useRouter();
 
   const handleDelete = async (ids: string[]) => {
     try {
       setIsDeleting(true);
-      await fetch("/api/backup", {
+      const response = await fetch("/api/backup", {
         method: "DELETE",
         body: JSON.stringify({ ids }),
       });
+
+      const { error } = (await response.json()) as ApiResponse<{
+        backupJobsIds: string[];
+      }>;
+
+      if (error) return toast.error(error.message);
+
+      toast.success("Backups deleted successfully");
     } catch {
     } finally {
       setSelectedBackups(new Set());
       setIsDeleting(false);
+      setOpen?.(false);
       router.refresh();
     }
   };
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        {trigger ? (
-          trigger
-        ) : (
-          <Button variant="destructive" size="sm">
-            <Trash2 className="mr-1.5 size-4" />
-            Delete ({selectedBackups.size})
-          </Button>
-        )}
-      </AlertDialogTrigger>
+    <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Selected Backups</AlertDialogTitle>
@@ -70,11 +71,14 @@ export default function DeleteBackupDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            onClick={() => handleDelete(Array.from(selectedBackups))}
-            disabled={isDeleting}
+            onClick={(e) => {
+              e.preventDefault();
+              handleDelete(Array.from(selectedBackups));
+            }}
+            disabled={isDeleting || selectedBackups.size === 0}
           >
             {isDeleting ? (
               <>

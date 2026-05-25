@@ -51,7 +51,11 @@ export default function BackupsTable({ backupJobs }: Props) {
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = useState({});
+
   const [isDeleting, setIsDeleting] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState<string | null>(null);
+  const [globalSelected, setGlobalSelected] = useState(false);
 
   const uniqueDatabases = () => {
     return Array.from(new Set(backupJobs.map((job) => job.databaseName)));
@@ -177,22 +181,19 @@ export default function BackupsTable({ backupJobs }: Props) {
                 <Download className="size-4" />
               </Button>
             )}
-            <DeleteBackupDialog
-              selectedBackups={new Set([job.id])}
-              setSelectedBackups={() => row.toggleSelected(false)}
-              isDeleting={isDeleting}
-              setIsDeleting={setIsDeleting}
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive hover:text-destructive"
-                  title="Delete backup"
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              }
-            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive"
+              title="Delete backup"
+              onClick={() => {
+                setJobToDelete(job.id);
+                setOpenDeleteDialog(true);
+                setGlobalSelected(false);
+              }}
+            >
+              <Trash2 className="size-4" />
+            </Button>
           </div>
         );
       },
@@ -231,148 +232,178 @@ export default function BackupsTable({ backupJobs }: Props) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>All Backups</CardTitle>
-            <CardDescription>
-              Manage and download your PostgreSQL backup files
-            </CardDescription>
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle>All Backups</CardTitle>
+              <CardDescription>
+                Manage and download your PostgreSQL backup files
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setOpenDeleteDialog(true);
+                    setGlobalSelected(true);
+                  }}
+                >
+                  <Trash2 className="mr-1.5 size-4" />
+                  Delete ({selectedIds.size})
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {selectedIds.size > 0 && (
-              <DeleteBackupDialog
-                selectedBackups={selectedIds}
-                setSelectedBackups={setGlobalSelectedBackups}
-                isDeleting={isDeleting}
-                setIsDeleting={setIsDeleting}
+        </CardHeader>
+        <CardContent>
+          {/* Search and Filters */}
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <Input
+                placeholder="Search by database name or file path..."
+                value={globalFilter ?? ""}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="pl-9"
               />
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {/* Search and Filters */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-            <Input
-              placeholder="Search by database name or file path..."
-              value={globalFilter ?? ""}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+            </div>
 
-          <Select
-            value={
-              (table.getColumn("databaseName")?.getFilterValue() as string) ??
-              "all"
-            }
-            onValueChange={(val) =>
-              table
-                .getColumn("databaseName")
-                ?.setFilterValue(val === "all" ? "" : val)
-            }
-          >
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="All Databases" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Databases</SelectItem>
-              {uniqueDatabases().map((db) => (
-                <SelectItem key={db} value={db}>
-                  {db}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={
-              (table.getColumn("status")?.getFilterValue() as string) ?? "all"
-            }
-            onValueChange={(val) =>
-              table
-                .getColumn("status")
-                ?.setFilterValue(val === "all" ? "" : val)
-            }
-          >
-            <SelectTrigger className="w-full sm:w-45">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="running">Running</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="failed">Failed</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Table */}
-        {table.getRowModel().rows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <FileArchive className="text-muted-foreground/50 mb-4 size-12" />
-            <h3 className="mb-1 text-lg font-medium">No backups found</h3>
-            <p className="text-muted-foreground">
-              {globalFilter || columnFilters.length > 0
-                ? "Try adjusting your filters"
-                : "Create a backup from the dashboard to get started"}
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead
-                        key={header.id}
-                        className={header.id === "select" ? "w-12" : undefined}
-                      >
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
+            <Select
+              value={
+                (table.getColumn("databaseName")?.getFilterValue() as string) ??
+                "all"
+              }
+              onValueChange={(val) =>
+                table
+                  .getColumn("databaseName")
+                  ?.setFilterValue(val === "all" ? "" : val)
+              }
+            >
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="All Databases" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Databases</SelectItem>
+                {uniqueDatabases().map((db) => (
+                  <SelectItem key={db} value={db}>
+                    {db}
+                  </SelectItem>
                 ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={
-                          cell.column.id === "actions"
-                            ? "text-right"
-                            : undefined
-                        }
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={
+                (table.getColumn("status")?.getFilterValue() as string) ?? "all"
+              }
+              onValueChange={(val) =>
+                table
+                  .getColumn("status")
+                  ?.setFilterValue(val === "all" ? "" : val)
+              }
+            >
+              <SelectTrigger className="w-full sm:w-45">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="running">Running</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          {/* Table */}
+          {table.getRowModel().rows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <FileArchive className="text-muted-foreground/50 mb-4 size-12" />
+              <h3 className="mb-1 text-lg font-medium">No backups found</h3>
+              <p className="text-muted-foreground">
+                {globalFilter || columnFilters.length > 0
+                  ? "Try adjusting your filters"
+                  : "Create a backup from the dashboard to get started"}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          className={
+                            header.id === "select" ? "w-12" : undefined
+                          }
+                        >
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          className={
+                            cell.column.id === "actions"
+                              ? "text-right"
+                              : undefined
+                          }
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <DeleteBackupDialog
+        selectedBackups={
+          globalSelected
+            ? selectedIds
+            : jobToDelete
+              ? new Set([jobToDelete])
+              : new Set()
+        }
+        setSelectedBackups={(value) => {
+          if (globalSelected) {
+            setGlobalSelectedBackups(value);
+          } else {
+            setJobToDelete(null);
+          }
+        }}
+        isDeleting={isDeleting}
+        setIsDeleting={setIsDeleting}
+        open={openDeleteDialog}
+        setOpen={setOpenDeleteDialog}
+      />
+    </>
   );
 }
