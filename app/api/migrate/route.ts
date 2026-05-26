@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { databasesTable, migrationJobsTable } from "@/db/schema";
 import { migrationSchema } from "@/lib/zod/migration";
 import { ApiResponse, BackupFlags, RestoreFlags } from "@/types";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -297,6 +297,65 @@ export async function POST(request: NextRequest) {
         Connection: "keep-alive",
       },
     });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json(
+      { error: { message: "Internal server error" }, data: null },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const { data, error: authError } = await authorizeRequest();
+
+  if (authError) {
+    return NextResponse.json(
+      { error: { message: authError.message }, data: null },
+      { status: 401 },
+    );
+  }
+
+  const userId = data.user.id;
+  const body = await request.json();
+
+  const { ids } = body;
+
+  if (!ids || !Array.isArray(ids || ids.length === 0)) {
+    return NextResponse.json(
+      { error: { message: "IDs array is required" }, data: null },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const migrationJobs = await db
+      .select()
+      .from(migrationJobsTable)
+      .where(
+        and(
+          inArray(migrationJobsTable.id, ids),
+          eq(migrationJobsTable.userId, userId),
+        ),
+      );
+
+    if (migrationJobs.length === 0) {
+      return NextResponse.json(
+        { error: { message: "No migration jobs found" }, data: null },
+        { status: 404 },
+      );
+    }
+    const migrationJobsIds: string[] = [];
+
+    migrationJobs.forEach((job) => {
+      migrationJobsIds.push(job.id);
+    });
+
+    await db
+      .delete(migrationJobsTable)
+      .where(inArray(migrationJobsTable.id, ids));
+
+    return NextResponse.json({ data: { migrationJobsIds }, error: null });
   } catch (error) {
     console.error(error);
     return NextResponse.json(

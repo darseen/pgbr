@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/card";
 import { AlertTriangle, Bomb, Trash2 } from "lucide-react";
 import { Metadata } from "next";
+import ClearMigrationsDialog from "./_components/clear-migrations-dialog";
 import ClearRestoresDialog from "./_components/clear-restores-dialog";
 import NukeDialog from "./_components/nuke-dialog";
 
@@ -37,6 +38,25 @@ export default function Page() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="border-destructive/30 bg-destructive/5 rounded-lg border p-4">
+                <div className="flex items-start gap-4">
+                  <div className="bg-destructive/10 rounded-full p-3">
+                    <Trash2 className="text-destructive size-6" />
+                  </div>
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">
+                        Clear Migration Logs
+                      </h3>
+                      <p className="text-muted-foreground mt-1 text-sm">
+                        Permanently delete all migration job history and logs.
+                        This action cannot be undone.
+                      </p>
+                    </div>
+                    <ClearMigrationsDialog />
+                  </div>
+                </div>
+              </div>
               <div className="border-destructive/30 bg-destructive/5 rounded-lg border p-4">
                 <div className="flex items-start gap-4">
                   <div className="bg-destructive/10 rounded-full p-3">
