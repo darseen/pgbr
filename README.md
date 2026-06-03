@@ -52,6 +52,7 @@ docker run -d\
   -p 3000:3000\
   -v /path/on/your/machine:/var/lib/pgbr\
   -e AUTH_SECRET="your-secret-key"\
+  -e BASE_URL="http://<your-server-ip>:3000"\
   --name pgbr\
   darseen/pgbr:latest
 
@@ -73,7 +74,7 @@ The following environment variables should be set for optimal security and confi
 
 - `PGBR_DATA`: The path to your data directory.
 
-- `AUTH_SECRET`: A secure, random string used to encrypt your database credentials and sign user sessions.
+- `AUTH_SECRET`: A secure, random string used to sign user sessions.
 
 - `BASE_URL`: The base URL of your pgbr instance.
 
