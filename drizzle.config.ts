@@ -1,8 +1,10 @@
 import { defineConfig } from "drizzle-kit";
 import path from "node:path";
-import { getPgbrDataPath } from "./utils";
 
-const pgbrDataUrl = path.join(`file:${getPgbrDataPath()}`, "pgbr.db");
+const pgbrDataUrl = path.join(
+  `file:${process.env.PGBR_DATA ?? "./data"}`,
+  "pgbr.db",
+);
 
 export default defineConfig({
   dialect: "sqlite",
