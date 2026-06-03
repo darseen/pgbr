@@ -46,7 +46,6 @@ export default function SignUpForm() {
         username: result.data.username,
         password: result.data.password,
       });
-      console.log(error);
       if (error) return toast.error(error.message);
 
       toast.success("Account created successfully");
