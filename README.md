@@ -50,7 +50,7 @@ Bash
 ```
 docker run -d\
   -p 3000:3000\
-  -v /path/on/your/machine:/var/lib/pgbr\
+  -v /path/on/your/machine:/var/lib/pgbr/data\
   -e AUTH_SECRET="your-secret-key"\
   -e BASE_URL="http://<your-server-ip>:3000"\
   --name pgbr\
