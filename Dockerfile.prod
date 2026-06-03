@@ -13,6 +13,7 @@ FROM base AS builder
 WORKDIR /app
 
 RUN corepack enable pnpm
+RUN mkdir -p /app/public
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
