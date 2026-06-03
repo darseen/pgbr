@@ -22,7 +22,7 @@ export const auth = betterAuth({
   }),
   advanced: {
     database: { generateId: "uuid" },
-    disableOriginCheck: !!process.env.BASE_URL,
+    disableOriginCheck: !process.env.BASE_URL,
   },
   secret: process.env.AUTH_SECRET,
   baseURL: process.env.BASE_URL,
