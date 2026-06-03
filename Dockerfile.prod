@@ -1,7 +1,10 @@
-FROM node:24-alpine AS base
+FROM node:24-slim AS base
 
 FROM base AS deps
-RUN apk update && apk add --no-cache libc6-compat openssl
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    && rm -rf /var/lib/apt/lists/*
+    
 WORKDIR /app
 
 RUN corepack enable pnpm
@@ -23,8 +26,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build
 
 FROM base AS runner
-RUN apk update && apk add --no-cache openssl postgresql-client
-RUN corepack enable pnpm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -35,6 +40,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/entrypoint.sh ./entrypoint.sh
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/db ./db
+
 
 RUN chmod +x ./entrypoint.sh
 
