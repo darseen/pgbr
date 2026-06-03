@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 <br/>
 <br/>
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/vaze?referralCode=InkF11&utm_medium=integration&utm_source=template&utm_campaign=generic)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/pgbr?referralCode=InkF11&utm_medium=integration&utm_source=template&utm_campaign=generic)
 
 # PGBR | PostgreSQL Backup & Restore
 
