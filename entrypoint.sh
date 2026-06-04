@@ -25,8 +25,9 @@ echo ">>> Ensuring database directory exists at $PGBR_DATA..."
 mkdir -p "$PGBR_DATA"
 
 echo ">>> Running database migrations..."
+export NO_UPDATE_NOTIFIER=true
+
 npx drizzle-kit generate
 npx drizzle-kit migrate
 
-echo ">>> Starting application..."
 exec "$@"
