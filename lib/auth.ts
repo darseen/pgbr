@@ -31,4 +31,9 @@ export const auth = betterAuth({
   },
   plugins: [username()],
   trustedOrigins: ["http://localhost:3000", `http://${hostname()}:3000`],
+  logger: {
+    level: "error",
+    disabled: false,
+    disableColors: false,
+  },
 });
