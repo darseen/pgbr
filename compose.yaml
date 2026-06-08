@@ -16,8 +16,6 @@ services:
       - pgbr:/var/lib/pgbr/data
 
     depends_on:
-      pgbr_db:
-        condition: service_started
       test_db1:
         condition: service_started
       test_db2:
@@ -37,17 +35,6 @@ services:
           path: package.json
         - action: rebuild
           path: pnpm-lock.yaml
-
-  pgbr_db:
-    image: postgres:18-alpine
-    container_name: pgbr_db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: password
-      PGDATA: /var/lib/postgresql/data
-    volumes:
-      - pgbr_db:/var/lib/postgresql/data
 
   test_db1:
     image: postgres:18-alpine
@@ -75,6 +62,5 @@ services:
 
 volumes:
   pgbr:
-  pgbr_db:
   test_db1:
   test_db2:
