@@ -14,17 +14,6 @@ export default function Info() {
       <div className="flex flex-col gap-4 pt-4">
         <div className="flex items-center gap-3">
           <div className="bg-background/10 flex size-10 items-center justify-center rounded-full">
-            <Shield className="size-5" />
-          </div>
-          <div>
-            <p className="font-medium">Secure Connection Storage</p>
-            <p className="text-background/60 dark:text-foreground/60 text-sm">
-              Encrypted credentials with masked display
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-background/10 flex size-10 items-center justify-center rounded-full">
             <Database className="size-5" />
           </div>
           <div>
@@ -53,6 +42,17 @@ export default function Info() {
             <p className="font-medium">Migrate data easily</p>
             <p className="text-background/60 dark:text-foreground/60 text-sm">
               Migrate data from one database to another with ease
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="bg-background/10 flex size-10 items-center justify-center rounded-full">
+            <Shield className="size-5" />
+          </div>
+          <div>
+            <p className="font-medium">Secure Connection Storage</p>
+            <p className="text-background/60 dark:text-foreground/60 text-sm">
+              Encrypted credentials with masked display
             </p>
           </div>
         </div>
