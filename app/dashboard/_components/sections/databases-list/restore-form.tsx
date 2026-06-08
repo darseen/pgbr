@@ -16,6 +16,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -30,10 +37,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { DEFAULT_RESTORE_FLAGS } from "@/constants";
 import { Database } from "@/db/schema";
 import { BackupJob } from "@/db/schema/backup-jobs";
-import type { ApiResponse, RestoreFlags } from "@/types";
+import { restoreSchema, RestoreSchema } from "@/lib/zod/restore";
+import type { ApiResponse } from "@/types";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Settings2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { SubmitEvent, useState } from "react";
+import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { SSE } from "sse.js";
 
 interface RestoreFormProps {
@@ -51,22 +61,28 @@ export default function RestoreForm({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState<string>("");
   const [customPath, setCustomPath] = useState("");
-  const [flags, setFlags] = useState<RestoreFlags>(DEFAULT_RESTORE_FLAGS);
   const [error, setError] = useState<string | null>(null);
 
   const completedBackups = backupJobs.filter(
     (j) => j.databaseId === database.id && j.status === "completed",
   );
 
-  function updateFlag<K extends keyof RestoreFlags>(
-    key: K,
-    value: RestoreFlags[K],
-  ) {
-    setFlags((f) => ({ ...f, [key]: value }));
-  }
+  const form = useForm<RestoreSchema>({
+    resolver: zodResolver(restoreSchema),
+    defaultValues: DEFAULT_RESTORE_FLAGS,
+  });
 
-  async function handleRestore(e: SubmitEvent<HTMLFormElement>) {
-    e.preventDefault();
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const isClean = form.watch("clean");
+
+  const handleArrayInput = (val: string): string[] => {
+    return val
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+
+  async function onSubmit(data: RestoreSchema) {
     setError(null);
 
     if (!selectedBackup && !customPath) {
@@ -84,44 +100,43 @@ export default function RestoreForm({
           databaseId: database.id,
           backupJobId: selectedBackup || undefined,
           backupPath: customPath || undefined,
-          flags,
+          flags: data,
         }),
       });
 
       event.addEventListener("message", (e: object) => {
         if ("data" in e && typeof e.data === "string") {
           const response = JSON.parse(e.data);
-          const { error } = response;
 
-          if (error) {
-            setError(error.message);
+          if (response.error) {
+            setError(response.error.message);
+            setIsLoading(false);
             return;
           }
 
           router.refresh();
-
           setOpen(false);
           setSelectedBackup("");
           setCustomPath("");
-          setFlags(DEFAULT_RESTORE_FLAGS);
+          form.reset(DEFAULT_RESTORE_FLAGS);
           setError(null);
+          setIsLoading(false);
         }
       });
 
       event.addEventListener("error", (e: object) => {
         if ("data" in e && typeof e.data === "string") {
           const response = JSON.parse(e.data) as ApiResponse<null>;
-          const { error } = response;
 
-          if (error) {
-            setError(error.message);
+          if (response.error) {
+            setError(response.error.message);
+            setIsLoading(false);
             return;
           }
         }
       });
     } catch {
       setError("An unexpected error occurred");
-    } finally {
       setIsLoading(false);
     }
   }
@@ -130,223 +145,449 @@ export default function RestoreForm({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">
-          <Upload className="size-4" />
+          <Upload className="mr-2 size-4" />
           Restore
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-h-[90vh] overflow-y-auto md:min-w-lg">
+        <DialogHeader className="mb-2 flex-col items-center justify-center">
           <DialogTitle>Restore Database</DialogTitle>
           <DialogDescription>
             Restore {database.name} from a backup with custom pg_restore flags.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleRestore} className="space-y-4">
+        <form
+          id="restore-form"
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-5"
+        >
           {error && (
-            <div className="text-destructive bg-destructive/10 rounded-md px-3 py-2 text-sm">
+            <div className="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">
               {error}
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="backup-select">Select Backup</Label>
-            {completedBackups.length > 0 ? (
-              <Select
-                value={selectedBackup}
-                onValueChange={(v) => {
-                  setSelectedBackup(v);
-                  if (v) setCustomPath("");
-                }}
-                disabled={isLoading || !!customPath}
-              >
-                <SelectTrigger id="backup-select" className="w-full">
-                  <SelectValue placeholder="Choose a backup..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {completedBackups.map((backup) => (
-                    <SelectItem key={backup.id} value={backup.id}>
-                      {backup.backupPath.split("/").pop()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                No completed backups available for this database.
-              </p>
-            )}
-          </div>
+          <div className="space-y-4">
+            <FieldGroup className="space-y-2">
+              <FieldLabel htmlFor="backup-select">Select Backup</FieldLabel>
+              {completedBackups.length > 0 ? (
+                <Select
+                  value={selectedBackup}
+                  onValueChange={(v) => {
+                    setSelectedBackup(v);
+                    if (v) setCustomPath("");
+                  }}
+                  disabled={isLoading || !!customPath}
+                >
+                  <SelectTrigger id="backup-select" className="w-full">
+                    <SelectValue placeholder="Choose a backup..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {completedBackups.map((backup) => (
+                      <SelectItem key={backup.id} value={backup.id}>
+                        {backup.backupPath.split("/").pop()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <FieldDescription className="text-sm">
+                  No completed backups available for this database.
+                </FieldDescription>
+              )}
+            </FieldGroup>
 
-          <div className="space-y-2">
-            <Label htmlFor="custom-path">Custom Backup Path</Label>
-            <Input
-              id="custom-path"
-              placeholder="/path/to/backup.dump"
-              value={customPath}
-              onChange={(e) => {
-                setCustomPath(e.target.value);
-                if (e.target.value) setSelectedBackup("");
-              }}
-              disabled={isLoading}
-            />
+            <FieldGroup className="space-y-2">
+              <FieldLabel htmlFor="custom-path">
+                Or Custom Backup Path
+              </FieldLabel>
+              <Input
+                id="custom-path"
+                placeholder="/path/to/backup.dump"
+                value={customPath}
+                onChange={(e) => {
+                  setCustomPath(e.target.value);
+                  if (e.target.value) setSelectedBackup("");
+                }}
+                disabled={isLoading}
+              />
+            </FieldGroup>
           </div>
 
           <SeparatorWithText>Options</SeparatorWithText>
-          <div className="space-y-2">
-            <Label htmlFor="jobs">Parallel Jobs</Label>
-            <Input
-              id="jobs"
-              type="number"
-              min={1}
-              max={16}
-              value={flags.jobs || 1}
-              onChange={(e) =>
-                updateFlag("jobs", parseInt(e.target.value) || 1)
-              }
-              disabled={isLoading}
-            />
-          </div>
 
-          {/* Quick Options */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="r-clean"
-                checked={flags.clean}
-                onCheckedChange={(c) => updateFlag("clean", !!c)}
-                disabled={isLoading}
-              />
-              <Label htmlFor="r-clean" className="text-sm font-normal">
-                Clean before restore
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="r-verbose"
-                checked={flags.verbose}
-                onCheckedChange={(c) => updateFlag("verbose", !!c)}
-                disabled={isLoading}
-              />
-              <Label htmlFor="r-verbose" className="text-sm font-normal">
-                Verbose output
-              </Label>
-            </div>
-          </div>
+          <FieldGroup className="grid grid-cols-2 gap-4">
+            <Controller
+              name="format"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="format">Format</FieldLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={(v) =>
+                      field.onChange(v as RestoreSchema["format"])
+                    }
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger
+                      id="format"
+                      className="w-full"
+                      aria-invalid={fieldState.invalid}
+                    >
+                      <SelectValue placeholder="Select format" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">Custom (c)</SelectItem>
+                      <SelectItem value="directory">Directory</SelectItem>
+                      <SelectItem value="tar">Tar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                </Field>
+              )}
+            />
+
+            <Controller
+              name="jobs"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor="jobs">Parallel Jobs (-j)</FieldLabel>
+                  <Input
+                    type="number"
+                    id="jobs"
+                    min={1}
+                    max={16}
+                    value={field.value || 1}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      field.onChange(val);
+                      if (val > 1) form.setValue("singleTransaction", false);
+                    }}
+                    disabled={isLoading}
+                    aria-invalid={fieldState.invalid}
+                  />
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                </Field>
+              )}
+            />
+          </FieldGroup>
 
           {/* Advanced Options */}
-          <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
+          <Collapsible
+            open={showAdvanced}
+            onOpenChange={setShowAdvanced}
+            className="overflow-hidden rounded-md border"
+          >
             <CollapsibleTrigger asChild>
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                className="w-full justify-start"
+                className="hover:bg-muted/50 h-auto w-full justify-between rounded-none p-4"
               >
-                <Settings2 className="size-4" />
-                Advanced Options
+                <div className="flex items-center">
+                  <Settings2 className="text-muted-foreground mr-2 size-4" />
+                  <span className="font-medium">Advanced Configurations</span>
+                </div>
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="r-dataOnly"
-                    checked={flags.dataOnly}
-                    onCheckedChange={(c) => {
-                      updateFlag("dataOnly", !!c);
-                      if (c) updateFlag("schemaOnly", false);
-                    }}
-                    disabled={isLoading || flags.schemaOnly}
+            <CollapsibleContent className="bg-muted/20 space-y-5 border-t p-4">
+              <div className="space-y-3">
+                <Label className="text-muted-foreground text-xs font-semibold uppercase">
+                  Toggles
+                </Label>
+                <FieldGroup className="bg-background grid grid-cols-1 gap-4 rounded-md border p-3 sm:grid-cols-2">
+                  <Controller
+                    name="dataOnly"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="dataOnly"
+                            checked={field.value as boolean}
+                            onCheckedChange={(c) => {
+                              field.onChange(c);
+                              if (c)
+                                form.setValue("schemaOnly", false, {
+                                  shouldValidate: true,
+                                });
+                            }}
+                            disabled={isLoading}
+                            aria-invalid={fieldState.invalid}
+                          />
+                          <FieldLabel
+                            htmlFor="dataOnly"
+                            className="m-0 cursor-pointer text-sm font-normal"
+                          >
+                            Data only (-a)
+                          </FieldLabel>
+                        </div>
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
                   />
-                  <Label htmlFor="r-dataOnly" className="text-sm font-normal">
-                    Data only
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="r-schemaOnly"
-                    checked={flags.schemaOnly}
-                    onCheckedChange={(c) => {
-                      updateFlag("schemaOnly", !!c);
-                      if (c) updateFlag("dataOnly", false);
-                    }}
-                    disabled={isLoading || flags.dataOnly}
+
+                  <Controller
+                    name="schemaOnly"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="schemaOnly"
+                            checked={field.value as boolean}
+                            onCheckedChange={(c) => {
+                              field.onChange(c);
+                              if (c)
+                                form.setValue("dataOnly", false, {
+                                  shouldValidate: true,
+                                });
+                            }}
+                            disabled={isLoading}
+                            aria-invalid={fieldState.invalid}
+                          />
+                          <FieldLabel
+                            htmlFor="schemaOnly"
+                            className="m-0 cursor-pointer text-sm font-normal"
+                          >
+                            Schema only (-s)
+                          </FieldLabel>
+                        </div>
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
                   />
-                  <Label htmlFor="r-schemaOnly" className="text-sm font-normal">
-                    Schema only
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="r-noOwner"
-                    checked={flags.noOwner}
-                    onCheckedChange={(c) => updateFlag("noOwner", !!c)}
-                    disabled={isLoading}
+
+                  <Controller
+                    name="clean"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="clean"
+                            checked={field.value as boolean}
+                            onCheckedChange={(c) => {
+                              field.onChange(c);
+                              if (!c) form.setValue("ifExists", false);
+                            }}
+                            disabled={isLoading}
+                            aria-invalid={fieldState.invalid}
+                          />
+                          <FieldLabel
+                            htmlFor="clean"
+                            className="m-0 cursor-pointer text-sm font-normal"
+                          >
+                            Clean (-c)
+                          </FieldLabel>
+                        </div>
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
                   />
-                  <Label htmlFor="r-noOwner" className="text-sm font-normal">
-                    No owner
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="r-noPrivileges"
-                    checked={flags.noPrivileges}
-                    onCheckedChange={(c) => updateFlag("noPrivileges", !!c)}
-                    disabled={isLoading}
+
+                  <Controller
+                    name="ifExists"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="ifExists"
+                            checked={field.value as boolean}
+                            onCheckedChange={field.onChange}
+                            disabled={isLoading || !isClean}
+                            aria-invalid={fieldState.invalid}
+                          />
+                          <FieldLabel
+                            htmlFor="ifExists"
+                            className={`m-0 cursor-pointer text-sm font-normal ${!isClean ? "text-muted-foreground" : ""}`}
+                          >
+                            If exists (--if-exists)
+                          </FieldLabel>
+                        </div>
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
                   />
-                  <Label
-                    htmlFor="r-noPrivileges"
-                    className="text-sm font-normal"
-                  >
-                    No privileges
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="r-singleTransaction"
-                    checked={flags.singleTransaction}
-                    onCheckedChange={(c) =>
-                      updateFlag("singleTransaction", !!c)
-                    }
-                    disabled={isLoading}
+
+                  <Controller
+                    name="singleTransaction"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="singleTransaction"
+                            checked={field.value as boolean}
+                            onCheckedChange={(c) => {
+                              field.onChange(c);
+                              if (c) form.setValue("jobs", 1);
+                            }}
+                            disabled={isLoading}
+                            aria-invalid={fieldState.invalid}
+                          />
+                          <FieldLabel
+                            htmlFor="singleTransaction"
+                            className="m-0 cursor-pointer text-sm font-normal"
+                          >
+                            Single transaction (-1)
+                          </FieldLabel>
+                        </div>
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
                   />
-                  <Label
-                    htmlFor="r-singleTransaction"
-                    className="text-sm font-normal"
-                  >
-                    Single transaction
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="r-exitOnError"
-                    checked={flags.exitOnError}
-                    onCheckedChange={(c) => updateFlag("exitOnError", !!c)}
-                    disabled={isLoading}
+
+                  {[
+                    { name: "create", label: "Create DB (-C)" },
+                    { name: "noOwner", label: "No owner (-O)" },
+                    { name: "noPrivileges", label: "No privileges (-x)" },
+                    { name: "disableTriggers", label: "Disable triggers" },
+                    { name: "exitOnError", label: "Exit on error (-e)" },
+                    { name: "verbose", label: "Verbose output" },
+                  ].map((item) => (
+                    <Controller
+                      key={item.name}
+                      name={item.name as keyof RestoreSchema}
+                      control={form.control}
+                      render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id={item.name}
+                              checked={field.value as boolean}
+                              onCheckedChange={field.onChange}
+                              disabled={isLoading}
+                              aria-invalid={fieldState.invalid}
+                            />
+                            <FieldLabel
+                              htmlFor={item.name}
+                              className="m-0 cursor-pointer text-sm font-normal"
+                            >
+                              {item.label}
+                            </FieldLabel>
+                          </div>
+                          {fieldState.invalid && (
+                            <FieldError errors={[fieldState.error]} />
+                          )}
+                        </Field>
+                      )}
+                    />
+                  ))}
+                </FieldGroup>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-muted-foreground text-xs font-semibold uppercase">
+                  Filters (Comma Separated)
+                </Label>
+                <FieldGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Controller
+                    name="includeSchemas"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel
+                          htmlFor="includeSchemas"
+                          className="text-sm"
+                        >
+                          Include Schemas (-n)
+                        </FieldLabel>
+                        <Input
+                          id="includeSchemas"
+                          placeholder="e.g. public, app_data"
+                          value={field.value?.join(", ") || ""}
+                          onChange={(e) =>
+                            field.onChange(handleArrayInput(e.target.value))
+                          }
+                          disabled={isLoading}
+                          aria-invalid={fieldState.invalid}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
                   />
-                  <Label
-                    htmlFor="r-exitOnError"
-                    className="text-sm font-normal"
-                  >
-                    Exit on error
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="r-ifExists"
-                    checked={flags.ifExists}
-                    onCheckedChange={(c) => updateFlag("ifExists", !!c)}
-                    disabled={isLoading}
+
+                  <Controller
+                    name="excludeSchemas"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field data-invalid={fieldState.invalid}>
+                        <FieldLabel
+                          htmlFor="excludeSchemas"
+                          className="text-sm"
+                        >
+                          Exclude Schemas (-N)
+                        </FieldLabel>
+                        <Input
+                          id="excludeSchemas"
+                          placeholder="e.g. audit, public_temp"
+                          value={field.value?.join(", ") || ""}
+                          onChange={(e) =>
+                            field.onChange(handleArrayInput(e.target.value))
+                          }
+                          disabled={isLoading}
+                          aria-invalid={fieldState.invalid}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
                   />
-                  <Label htmlFor="r-ifExists" className="text-sm font-normal">
-                    IF EXISTS on DROP
-                  </Label>
-                </div>
+
+                  <Controller
+                    name="includeTables"
+                    control={form.control}
+                    render={({ field, fieldState }) => (
+                      <Field
+                        data-invalid={fieldState.invalid}
+                        className="sm:col-span-2"
+                      >
+                        <FieldLabel htmlFor="includeTables" className="text-sm">
+                          Include Tables (-t)
+                        </FieldLabel>
+                        <Input
+                          id="includeTables"
+                          placeholder="e.g. users, products"
+                          value={field.value?.join(", ") || ""}
+                          onChange={(e) =>
+                            field.onChange(handleArrayInput(e.target.value))
+                          }
+                          disabled={isLoading}
+                          aria-invalid={fieldState.invalid}
+                        />
+                        {fieldState.invalid && (
+                          <FieldError errors={[fieldState.error]} />
+                        )}
+                      </Field>
+                    )}
+                  />
+                </FieldGroup>
               </div>
             </CollapsibleContent>
           </Collapsible>
 
-          <DialogFooter>
+          <DialogFooter className="pt-2">
             <Button
               type="button"
               variant="outline"
@@ -355,8 +596,13 @@ export default function RestoreForm({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? <Spinner /> : "Start Restore"}
+            <Button
+              type="submit"
+              form="restore-form"
+              disabled={isLoading}
+              className="min-w-30"
+            >
+              {isLoading ? <Spinner className="size-4" /> : "Start Restore"}
             </Button>
           </DialogFooter>
         </form>

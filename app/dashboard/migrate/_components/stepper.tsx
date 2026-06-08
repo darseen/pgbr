@@ -28,10 +28,9 @@ export default function Stepper({ databases }: Props) {
 
   const [backupFlags, setBackupFlags] =
     useState<BackupFlags>(DEFAULT_BACKUP_FLAGS);
-  const [restoreFlags, setRestoreFlags] = useState<RestoreFlags>({
-    ...DEFAULT_RESTORE_FLAGS,
-    noOwner: true,
-  });
+  const [restoreFlags, setRestoreFlags] = useState<RestoreFlags>(
+    DEFAULT_RESTORE_FLAGS,
+  );
 
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);

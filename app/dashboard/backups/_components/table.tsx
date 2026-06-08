@@ -41,6 +41,7 @@ import { Download, FileArchive, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
 import getStatusBadge from "../../_components/sections/job-history/get-status-badge";
 import getStatusIcon from "../../_components/sections/job-history/get-status-icon";
+import CopyablePath from "./copyable-path";
 import DeleteBackupDialog from "./delete-dialog";
 
 interface Props {
@@ -118,9 +119,7 @@ export default function BackupsTable({ backupJobs }: Props) {
       accessorKey: "backupPath",
       header: () => <span className="table-cell">File Path</span>,
       cell: ({ row }) => (
-        <code className="bg-muted inline-block max-w-50 truncate rounded px-2 py-1 font-mono text-xs">
-          {(row.getValue("backupPath") as string) || "-"}
-        </code>
+        <CopyablePath path={row.getValue("backupPath") as string} />
       ),
     },
     {

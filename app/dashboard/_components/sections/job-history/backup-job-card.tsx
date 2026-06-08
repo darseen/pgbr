@@ -17,15 +17,11 @@ import getStatusIcon from "./get-status-icon";
 
 interface Props {
   job: BackupJob;
-  onDownloadClick: (job: BackupJob) => void;
 }
 
-export default function BackupJobCard({ job, onDownloadClick }: Props) {
+export default function BackupJobCard({ job }: Props) {
   return (
-    <Card
-      className="hover:border-primary border transition-colors hover:cursor-pointer"
-      onClick={() => onDownloadClick(job)}
-    >
+    <Card className="hover:border-primary border transition-colors">
       <CardHeader>
         <div className="flex items-start gap-3">
           <div className="mt-0.5">{getStatusIcon(job.status)}</div>

@@ -6,6 +6,7 @@ import {
   restoreJobsTable,
 } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { decrypt } from "@/utils/encryption";
 import { desc, eq } from "drizzle-orm";
 import { Metadata } from "next";
 import { headers } from "next/headers";
@@ -52,7 +53,10 @@ export default async function Page() {
   return (
     <main className="animate-in fade-in slide-in-from-bottom-4 container mx-auto flex-1 px-4 py-8 duration-500">
       <div className="grid items-start gap-8 lg:grid-cols-[1fr_400px]">
-        <DatabasesList backupJobs={backupJobs} databases={databases} />
+        <DatabasesList
+          backupJobs={backupJobs}
+          databases={databases.map((db) => ({ ...db, url: decrypt(db.url) }))}
+        />
         <JobHistory
           restoreJobs={restoreJobs}
           backupJobs={backupJobs}

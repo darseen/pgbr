@@ -95,9 +95,17 @@ export default function ConfigForm({
     return url.startsWith("postgres://") || url.startsWith("postgresql://");
   }
 
+  const handleArrayInput = (val: string): string[] => {
+    return val
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+
   return (
     <section className="animate-in fade-in slide-in-from-bottom-4 space-y-8 duration-500">
       <div className="flex flex-col items-stretch gap-6 md:flex-row">
+        {/* Source Database Card */}
         <Card className="border-muted flex-1 shadow-sm transition-shadow hover:shadow-md">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-3">
@@ -172,7 +180,7 @@ export default function ConfigForm({
         </Card>
 
         <div className="flex items-center justify-center py-2 md:py-0">
-          <div className="bg-background text-muted-foreground z-10 hidden rounded-full border p-3 shadow-sm md:flex">
+          <div className="bg-background text-muted-foreground hidden rounded-full border p-3 shadow-sm md:flex">
             <ArrowRight className="size-5" />
           </div>
           <div className="bg-background text-muted-foreground rounded-full border p-2 shadow-sm md:hidden">
@@ -180,6 +188,7 @@ export default function ConfigForm({
           </div>
         </div>
 
+        {/* Target Database Card */}
         <Card className="border-muted flex-1 shadow-sm transition-shadow hover:shadow-md">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-3">
@@ -265,8 +274,8 @@ export default function ConfigForm({
             Tune your pg_dump and pg_restore configurations (Optional)
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {/* Backup Options */}
+        <CardContent className="space-y-4">
+          {/* BACKUP OPTIONS */}
           <Collapsible
             open={showBackupOptions}
             onOpenChange={setShowBackupOptions}
@@ -285,11 +294,11 @@ export default function ConfigForm({
                 />
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="bg-muted/20 border-t p-4 pt-2">
-              <Label className="text-muted-foreground mb-3 block text-xs font-semibold uppercase">
-                Flags
+            <CollapsibleContent className="bg-muted/20 space-y-4 border-t p-4 pt-3">
+              <Label className="text-muted-foreground block text-xs font-semibold uppercase">
+                Toggles
               </Label>
-              <div className="bg-background grid grid-cols-1 gap-4 rounded-md border p-4 sm:grid-cols-2">
+              <div className="bg-background grid grid-cols-1 gap-4 rounded-md border p-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="flex items-start gap-3">
                   <Checkbox
                     id="b-dataOnly"
@@ -298,19 +307,13 @@ export default function ConfigForm({
                       updateBackupFlag("dataOnly", !!c);
                       if (c) updateBackupFlag("schemaOnly", false);
                     }}
-                    className="mt-0.5"
                   />
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="b-dataOnly"
-                      className="cursor-pointer font-medium"
-                    >
-                      Data only (-a)
-                    </Label>
-                    <p className="text-muted-foreground text-xs">
-                      Dump only the data, not the schema
-                    </p>
-                  </div>
+                  <Label
+                    htmlFor="b-dataOnly"
+                    className="cursor-pointer leading-none font-medium"
+                  >
+                    Data only (-a)
+                  </Label>
                 </div>
                 <div className="flex items-start gap-3">
                   <Checkbox
@@ -320,52 +323,167 @@ export default function ConfigForm({
                       updateBackupFlag("schemaOnly", !!c);
                       if (c) updateBackupFlag("dataOnly", false);
                     }}
-                    className="mt-0.5"
-                  />
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="b-schemaOnly"
-                      className="cursor-pointer font-medium"
-                    >
-                      Schema only (-s)
-                    </Label>
-                    <p className="text-muted-foreground text-xs">
-                      Dump only the object definitions
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    id="b-noOwner"
-                    checked={backupFlags.noOwner}
-                    onCheckedChange={(c) => updateBackupFlag("noOwner", !!c)}
                   />
                   <Label
-                    htmlFor="b-noOwner"
-                    className="cursor-pointer font-medium"
+                    htmlFor="b-schemaOnly"
+                    className="cursor-pointer leading-none font-medium"
                   >
-                    No owner (-O)
+                    Schema only (-s)
                   </Label>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-start gap-3">
                   <Checkbox
-                    id="b-noPrivileges"
-                    checked={backupFlags.noPrivileges}
-                    onCheckedChange={(c) =>
-                      updateBackupFlag("noPrivileges", !!c)
+                    id="b-clean"
+                    checked={backupFlags.clean}
+                    onCheckedChange={(c) => {
+                      updateBackupFlag("clean", !!c);
+                      if (!c) updateBackupFlag("ifExists", false);
+                    }}
+                  />
+                  <Label
+                    htmlFor="b-clean"
+                    className="cursor-pointer leading-none font-medium"
+                  >
+                    Clean (-c)
+                  </Label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="b-ifExists"
+                    checked={backupFlags.ifExists}
+                    disabled={!backupFlags.clean}
+                    onCheckedChange={(c) => updateBackupFlag("ifExists", !!c)}
+                  />
+                  <Label
+                    htmlFor="b-ifExists"
+                    className={`cursor-pointer leading-none font-medium ${!backupFlags.clean ? "text-muted-foreground" : ""}`}
+                  >
+                    IF EXISTS on DROP
+                  </Label>
+                </div>
+                {[
+                  { id: "b-create", key: "create", label: "Create DB (-C)" },
+                  { id: "b-noOwner", key: "noOwner", label: "No owner (-O)" },
+                  {
+                    id: "b-noPrivileges",
+                    key: "noPrivileges",
+                    label: "No privileges (-x)",
+                  },
+                  {
+                    id: "b-inserts",
+                    key: "inserts",
+                    label: "Use inserts (--inserts)",
+                  },
+                ].map((flag) => (
+                  <div key={flag.id} className="flex items-center gap-3">
+                    <Checkbox
+                      id={flag.id}
+                      checked={
+                        backupFlags[flag.key as keyof BackupFlags] as boolean
+                      }
+                      onCheckedChange={(c) =>
+                        updateBackupFlag(flag.key as keyof BackupFlags, !!c)
+                      }
+                    />
+                    <Label
+                      htmlFor={flag.id}
+                      className="cursor-pointer leading-none font-medium"
+                    >
+                      {flag.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+
+              <Label className="text-muted-foreground mt-4 block text-xs font-semibold uppercase">
+                Filters (Comma Separated)
+              </Label>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="b-excludeSchemas" className="text-sm">
+                    Exclude Schemas (-N)
+                  </Label>
+                  <Input
+                    id="b-excludeSchemas"
+                    placeholder="e.g. audit, public_temp"
+                    value={backupFlags.excludeSchemas?.join(", ") || ""}
+                    onChange={(e) =>
+                      updateBackupFlag(
+                        "excludeSchemas",
+                        handleArrayInput(e.target.value),
+                      )
                     }
                   />
-                  <Label
-                    htmlFor="b-noPrivileges"
-                    className="cursor-pointer font-medium"
-                  >
-                    No privileges (-x)
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="b-includeSchemas" className="text-sm">
+                    Include Schemas (-n)
                   </Label>
+                  <Input
+                    id="b-includeSchemas"
+                    placeholder="e.g. public, app_data"
+                    value={backupFlags.includeSchemas?.join(", ") || ""}
+                    onChange={(e) =>
+                      updateBackupFlag(
+                        "includeSchemas",
+                        handleArrayInput(e.target.value),
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="b-excludeTables" className="text-sm">
+                    Exclude Tables (-T)
+                  </Label>
+                  <Input
+                    id="b-excludeTables"
+                    placeholder="e.g. logs, migrations"
+                    value={backupFlags.excludeTables?.join(", ") || ""}
+                    onChange={(e) =>
+                      updateBackupFlag(
+                        "excludeTables",
+                        handleArrayInput(e.target.value),
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="b-includeTables" className="text-sm">
+                    Include Tables (-t)
+                  </Label>
+                  <Input
+                    id="b-includeTables"
+                    placeholder="e.g. users, products"
+                    value={backupFlags.includeTables?.join(", ") || ""}
+                    onChange={(e) =>
+                      updateBackupFlag(
+                        "includeTables",
+                        handleArrayInput(e.target.value),
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="b-excludeTableData" className="text-sm">
+                    Exclude Table Data (--exclude-table-data)
+                  </Label>
+                  <Input
+                    id="b-excludeTableData"
+                    placeholder="e.g. logs, events (exports schema, skips data)"
+                    value={backupFlags.excludeTableData?.join(", ") || ""}
+                    onChange={(e) =>
+                      updateBackupFlag(
+                        "excludeTableData",
+                        handleArrayInput(e.target.value),
+                      )
+                    }
+                  />
                 </div>
               </div>
             </CollapsibleContent>
           </Collapsible>
 
+          {/* RESTORE OPTIONS */}
           <Collapsible
             open={showRestoreOptions}
             onOpenChange={setShowRestoreOptions}
@@ -384,26 +502,85 @@ export default function ConfigForm({
                 />
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="bg-muted/20 border-t p-4 pt-2">
-              <Label className="text-muted-foreground mb-3 block text-xs font-semibold uppercase">
-                Flags
+            <CollapsibleContent className="bg-muted/20 space-y-4 border-t p-4 pt-3">
+              <Label className="text-muted-foreground block text-xs font-semibold uppercase">
+                Toggles
               </Label>
-              <div className="bg-background grid grid-cols-1 gap-4 rounded-md border p-4 sm:grid-cols-2">
+              <div className="bg-background grid grid-cols-1 gap-4 rounded-md border p-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="r-dataOnly"
+                    checked={restoreFlags.dataOnly}
+                    onCheckedChange={(c) => {
+                      updateRestoreFlag("dataOnly", !!c);
+                      if (c) updateRestoreFlag("schemaOnly", false);
+                    }}
+                  />
+                  <Label
+                    htmlFor="r-dataOnly"
+                    className="cursor-pointer leading-none font-medium"
+                  >
+                    Data only (-a)
+                  </Label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="r-schemaOnly"
+                    checked={restoreFlags.schemaOnly}
+                    onCheckedChange={(c) => {
+                      updateRestoreFlag("schemaOnly", !!c);
+                      if (c) updateRestoreFlag("dataOnly", false);
+                    }}
+                  />
+                  <Label
+                    htmlFor="r-schemaOnly"
+                    className="cursor-pointer leading-none font-medium"
+                  >
+                    Schema only (-s)
+                  </Label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="r-clean"
+                    checked={restoreFlags.clean}
+                    onCheckedChange={(c) => {
+                      updateRestoreFlag("clean", !!c);
+                      if (!c) updateRestoreFlag("ifExists", false);
+                    }}
+                  />
+                  <Label
+                    htmlFor="r-clean"
+                    className="cursor-pointer leading-none font-medium"
+                  >
+                    Clean (-c)
+                  </Label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    id="r-ifExists"
+                    checked={restoreFlags.ifExists}
+                    disabled={!restoreFlags.clean}
+                    onCheckedChange={(c) => updateRestoreFlag("ifExists", !!c)}
+                  />
+                  <Label
+                    htmlFor="r-ifExists"
+                    className={`cursor-pointer leading-none font-medium ${!restoreFlags.clean ? "text-muted-foreground" : ""}`}
+                  >
+                    IF EXISTS on DROP
+                  </Label>
+                </div>
                 {[
-                  {
-                    id: "r-clean",
-                    key: "clean",
-                    label: "Clean before restore (-c)",
-                  },
-                  {
-                    id: "r-noOwner",
-                    key: "noOwner",
-                    label: "No owner (-O)",
-                  },
+                  { id: "r-create", key: "create", label: "Create DB (-C)" },
+                  { id: "r-noOwner", key: "noOwner", label: "No owner (-O)" },
                   {
                     id: "r-noPrivileges",
                     key: "noPrivileges",
                     label: "No privileges (-x)",
+                  },
+                  {
+                    id: "r-disableTriggers",
+                    key: "disableTriggers",
+                    label: "Disable triggers",
                   },
                   {
                     id: "r-singleTransaction",
@@ -414,11 +591,6 @@ export default function ConfigForm({
                     id: "r-exitOnError",
                     key: "exitOnError",
                     label: "Exit on error (-e)",
-                  },
-                  {
-                    id: "r-ifExists",
-                    key: "ifExists",
-                    label: "IF EXISTS on DROP (--if-exists)",
                   },
                 ].map((flag) => (
                   <div key={flag.id} className="flex items-center gap-3">
@@ -433,12 +605,66 @@ export default function ConfigForm({
                     />
                     <Label
                       htmlFor={flag.id}
-                      className="cursor-pointer font-medium"
+                      className="cursor-pointer leading-none font-medium"
                     >
                       {flag.label}
                     </Label>
                   </div>
                 ))}
+              </div>
+
+              <Label className="text-muted-foreground mt-4 block text-xs font-semibold uppercase">
+                Filters (Comma Separated)
+              </Label>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="r-includeSchemas" className="text-sm">
+                    Include Schemas (-n)
+                  </Label>
+                  <Input
+                    id="r-includeSchemas"
+                    placeholder="e.g. public, app_data"
+                    value={restoreFlags.includeSchemas?.join(", ") || ""}
+                    onChange={(e) =>
+                      updateRestoreFlag(
+                        "includeSchemas",
+                        handleArrayInput(e.target.value),
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="r-excludeSchemas" className="text-sm">
+                    Exclude Schemas (-N)
+                  </Label>
+                  <Input
+                    id="r-excludeSchemas"
+                    placeholder="e.g. audit, public_temp"
+                    value={restoreFlags.excludeSchemas?.join(", ") || ""}
+                    onChange={(e) =>
+                      updateRestoreFlag(
+                        "excludeSchemas",
+                        handleArrayInput(e.target.value),
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="r-includeTables" className="text-sm">
+                    Include Tables (-t)
+                  </Label>
+                  <Input
+                    id="r-includeTables"
+                    placeholder="e.g. users, products"
+                    value={restoreFlags.includeTables?.join(", ") || ""}
+                    onChange={(e) =>
+                      updateRestoreFlag(
+                        "includeTables",
+                        handleArrayInput(e.target.value),
+                      )
+                    }
+                  />
+                </div>
               </div>
             </CollapsibleContent>
           </Collapsible>

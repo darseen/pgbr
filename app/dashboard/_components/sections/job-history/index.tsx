@@ -1,5 +1,3 @@
-"use client";
-
 import {
   Card,
   CardContent,
@@ -11,9 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BackupJob, MigrationJob, RestoreJob } from "@/db/schema";
 import { ArrowDownUp, Download, Upload } from "lucide-react";
-import { useState } from "react";
 import BackupJobCard from "./backup-job-card";
-import DownloadDialog from "./download-dialog";
 import MigrationJobCard from "./migration-job-card";
 import RestoreJobItem from "./restore-job-card";
 
@@ -28,8 +24,6 @@ export default function JobHistory({
   backupJobs,
   migrationJobs,
 }: Props) {
-  const [selectedJob, setSelectedJob] = useState<BackupJob | null>(null);
-
   const hasJobs = backupJobs.length > 0 || restoreJobs.length > 0;
 
   return (
@@ -85,11 +79,7 @@ export default function JobHistory({
                   <div className="space-y-3">
                     {backupJobs.length > 0 ? (
                       backupJobs.map((job) => (
-                        <BackupJobCard
-                          key={job.id}
-                          job={job}
-                          onDownloadClick={() => setSelectedJob(job)}
-                        />
+                        <BackupJobCard key={job.id} job={job} />
                       ))
                     ) : (
                       <p className="text-muted-foreground py-8 text-center text-sm">
@@ -135,12 +125,6 @@ export default function JobHistory({
           </CardContent>
         </Card>
       )}
-
-      <DownloadDialog
-        job={selectedJob}
-        isOpen={selectedJob !== null}
-        setSelectedJob={setSelectedJob}
-      />
     </section>
   );
 }
