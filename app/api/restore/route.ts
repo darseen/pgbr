@@ -5,11 +5,13 @@ import {
   RestoreJob,
   restoreJobsTable,
 } from "@/db/schema";
+import { restoreSchema } from "@/lib/zod/restore";
 import { ApiResponse } from "@/types";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { decrypt } from "../../../utils/encryption";
 import { buildPgRestoreArgs } from "../_utils";
 import authorizeRequest from "../_utils/authorize-request";
 
@@ -30,7 +32,7 @@ export async function GET(request: NextRequest) {
 
   try {
     if (databaseId) {
-      const [database] = await db
+      const [restoreJob] = await db
         .select()
         .from(restoreJobsTable)
         .where(
@@ -40,16 +42,16 @@ export async function GET(request: NextRequest) {
           ),
         );
 
-      if (!database) {
+      if (!restoreJob) {
         return NextResponse.json(
           { error: { message: "Database not found" }, data: null },
           { status: 404 },
         );
       }
 
-      return NextResponse.json({ data: { database }, error: null });
+      return NextResponse.json({ data: { restoreJob }, error: null });
     } else if (databaseName) {
-      const [database] = await db
+      const [restoreJob] = await db
         .select()
         .from(restoreJobsTable)
         .where(
@@ -59,14 +61,14 @@ export async function GET(request: NextRequest) {
           ),
         );
 
-      if (!database) {
+      if (!restoreJob) {
         return NextResponse.json(
           { error: { message: "Database not found" }, data: null },
           { status: 404 },
         );
       }
 
-      return NextResponse.json({ data: { database }, error: null });
+      return NextResponse.json({ data: { restoreJob }, error: null });
     } else {
       const restoreJobs = await db
         .select()
@@ -97,7 +99,7 @@ export async function POST(request: NextRequest) {
   const userId = data.user.id;
 
   const body = await request.json();
-  const { databaseId, backupJobId, backupPath, flags } = body;
+  const { databaseId, backupJobId, backupPath } = body;
 
   if (!databaseId) {
     return NextResponse.json(
@@ -115,6 +117,16 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  const flagResult = restoreSchema.safeParse(body.flags || {});
+  if (!flagResult.success) {
+    return NextResponse.json(
+      { error: { message: flagResult.error.issues[0].message }, data: null },
+      { status: 400 },
+    );
+  }
+
+  const flags = flagResult.data;
 
   try {
     const [database] = await db
@@ -177,11 +189,15 @@ export async function POST(request: NextRequest) {
 
           if (isPlainSql) {
             command = "psql";
-            args = ["-d", database.url, "-f", targetRestorePath];
+            args = ["-d", decrypt(database.url), "-f", targetRestorePath];
             if (flags.singleTransaction) args.unshift("-1");
             if (flags.exitOnError) args.unshift("-v", "ON_ERROR_STOP=1");
           } else {
-            args = buildPgRestoreArgs(targetRestorePath, flags, database.url);
+            args = buildPgRestoreArgs(
+              targetRestorePath,
+              flags,
+              decrypt(database.url),
+            );
           }
 
           const [restoreJob] = await db
@@ -303,7 +319,7 @@ export async function DELETE(request: NextRequest) {
   const body = await request.json();
   const { ids } = body;
 
-  if (!ids || !Array.isArray(ids || ids.length === 0)) {
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return NextResponse.json(
       { error: { message: "IDs array is required" }, data: null },
       { status: 400 },
@@ -332,7 +348,14 @@ export async function DELETE(request: NextRequest) {
       restoreJobsIds.push(job.id);
     });
 
-    await db.delete(restoreJobsTable).where(inArray(restoreJobsTable.id, ids));
+    await db
+      .delete(restoreJobsTable)
+      .where(
+        and(
+          inArray(restoreJobsTable.id, ids),
+          eq(restoreJobsTable.userId, userId),
+        ),
+      );
 
     return NextResponse.json({ data: { restoreJobsIds }, error: null });
   } catch (error) {

@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
+import { decrypt, encrypt } from "../../../utils/encryption";
 import authorizeRequest from "../_utils/authorize-request";
 
 export async function GET(request: NextRequest) {
@@ -19,10 +20,18 @@ export async function GET(request: NextRequest) {
   const userId = data.user.id;
 
   try {
-    const databases = await db
+    const rawDatabases = await db
       .select()
       .from(databasesTable)
       .where(eq(databasesTable.userId, userId));
+
+    // decrypt the URLs for the client
+    const databases = rawDatabases.map((dbRecord) => {
+      return {
+        ...dbRecord,
+        url: decrypt(dbRecord.url),
+      };
+    });
 
     return NextResponse.json({ data: { databases }, error: null });
   } catch (error) {
@@ -79,12 +88,13 @@ export async function POST(request: NextRequest) {
       .values({
         id: randomUUID(),
         name: result.data.name,
-        url: result.data.url,
+        url: encrypt(result.data.url),
         userId,
       })
       .returning();
 
     revalidatePath("/dashboard");
+    database.url = result.data.url;
     return NextResponse.json({ data: { database }, error: null });
   } catch (error) {
     console.error(error);
@@ -130,11 +140,14 @@ export async function PUT(request: NextRequest) {
   try {
     const [database] = await db
       .update(databasesTable)
-      .set({ name: result.data.name, url: result.data.url })
+      .set({ name: result.data.name, url: encrypt(result.data.url) })
       .where(and(eq(databasesTable.id, id), eq(databasesTable.userId, userId)))
       .returning();
 
     revalidatePath("/dashboard");
+
+    // return the updated database with the unencrypted URL
+    database.url = result.data.url;
     return NextResponse.json({ data: { database }, error: null });
   } catch (error) {
     console.error(error);

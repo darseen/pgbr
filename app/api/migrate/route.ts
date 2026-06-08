@@ -6,6 +6,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { decrypt, encrypt } from "../../../utils/encryption";
 import { buildPgDumpArgs, buildPgRestoreArgs } from "../_utils";
 import authorizeRequest from "../_utils/authorize-request";
 
@@ -93,8 +94,8 @@ export async function POST(request: NextRequest) {
             userId,
             targetDatabaseId: targetDb.id,
             sourceDatabaseId: sourceDb.id,
-            sourceDatabaseUrl: sourceDb.url,
-            targetDatabaseUrl: targetDb.url,
+            sourceDatabaseUrl: encrypt(sourceDb.url),
+            targetDatabaseUrl: encrypt(targetDb.url),
             sourceDatabaseName: sourceDb.name,
             targetDatabaseName: targetDb.name,
             backupFlags: result.data.backupFlags,
@@ -321,7 +322,7 @@ export async function DELETE(request: NextRequest) {
 
   const { ids } = body;
 
-  if (!ids || !Array.isArray(ids || ids.length === 0)) {
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return NextResponse.json(
       { error: { message: "IDs array is required" }, data: null },
       { status: 400 },
@@ -345,15 +346,16 @@ export async function DELETE(request: NextRequest) {
         { status: 404 },
       );
     }
-    const migrationJobsIds: string[] = [];
-
-    migrationJobs.forEach((job) => {
-      migrationJobsIds.push(job.id);
-    });
+    const migrationJobsIds: string[] = migrationJobs.map((job) => job.id);
 
     await db
       .delete(migrationJobsTable)
-      .where(inArray(migrationJobsTable.id, ids));
+      .where(
+        and(
+          inArray(migrationJobsTable.id, ids),
+          eq(migrationJobsTable.userId, userId),
+        ),
+      );
 
     return NextResponse.json({ data: { migrationJobsIds }, error: null });
   } catch (error) {
@@ -381,7 +383,7 @@ async function getDbUrl({
     if (!database) return null;
 
     return {
-      url: database.url,
+      url: decrypt(database.url),
       name: database.name,
       id: database.id,
     };

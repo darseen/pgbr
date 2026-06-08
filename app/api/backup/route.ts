@@ -1,7 +1,7 @@
-import { DEFAULT_BACKUP_FLAGS } from "@/constants";
 import { db } from "@/db";
 import { BackupJob, backupJobsTable, databasesTable } from "@/db/schema";
-import { ApiResponse, BackupFlags } from "@/types";
+import { backupSchema } from "@/lib/zod/backup";
+import { ApiResponse } from "@/types";
 import { getBackupsPath } from "@/utils";
 import { format } from "date-fns";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
@@ -10,7 +10,8 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { buildPgDumpArgs } from "../_utils";
+import { decrypt } from "../../../utils/encryption";
+import { buildPgDumpArgs, getDirectorySize } from "../_utils";
 import authorizeRequest from "../_utils/authorize-request";
 
 export async function GET(request: NextRequest) {
@@ -98,16 +99,23 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const databaseId = body.databaseId as string | undefined;
-  let flags = body.flags as BackupFlags | undefined;
 
   if (!databaseId) {
     return NextResponse.json(
       { error: { message: "Database ID is required" }, data: null },
       { status: 400 },
     );
-  } else if (!flags) {
-    flags = DEFAULT_BACKUP_FLAGS;
   }
+
+  const flagResult = backupSchema.safeParse(body.flags);
+  if (!flagResult.success) {
+    return NextResponse.json(
+      { error: { message: flagResult.error.issues[0].message }, data: null },
+      { status: 400 },
+    );
+  }
+
+  const flags = flagResult.data;
 
   try {
     const [database] = await db
@@ -168,7 +176,11 @@ export async function POST(request: NextRequest) {
 
           sendEvent({ error: null, data: { backupJob } });
 
-          const args = buildPgDumpArgs(backupPath, flags, database.url);
+          const args = buildPgDumpArgs(
+            backupPath,
+            flags,
+            decrypt(database.url),
+          );
 
           const pgDumpProcess = spawn("pg_dump", args, {
             stdio: ["ignore", "ignore", "pipe"],
@@ -193,8 +205,16 @@ export async function POST(request: NextRequest) {
 
               let size = 0;
               if (code === 0) {
-                const stat = await fs.stat(backupPath);
-                size = stat.size;
+                try {
+                  const stat = await fs.stat(backupPath);
+                  if (stat.isDirectory()) {
+                    size = await getDirectorySize(backupPath);
+                  } else {
+                    size = stat.size;
+                  }
+                } catch (error) {
+                  console.error("Failed to calculate backup size", error);
+                }
               }
 
               const [[updatedJob]] = await Promise.all([
@@ -322,9 +342,18 @@ export async function DELETE(request: NextRequest) {
       backupJobsIds.push(job.id);
     });
 
-    await db.delete(backupJobsTable).where(inArray(backupJobsTable.id, ids));
+    await db
+      .delete(backupJobsTable)
+      .where(
+        and(
+          inArray(backupJobsTable.id, ids),
+          eq(backupJobsTable.userId, userId),
+        ),
+      );
 
-    await Promise.all(backupPaths.map((path) => fs.rm(path)));
+    await Promise.all(
+      backupPaths.map((path) => fs.rm(path, { recursive: true, force: true })),
+    );
 
     return NextResponse.json({ data: { backupJobsIds }, error: null });
   } catch (error) {
