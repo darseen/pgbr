@@ -1,3 +1,5 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,8 +12,18 @@ import {
 } from "@/components/ui/card";
 import { Database } from "@/db/schema";
 import { BackupJob } from "@/db/schema/backup-jobs";
-import { CalendarDays, History, Pencil, Server, Trash2 } from "lucide-react";
-import { Dispatch, SetStateAction } from "react";
+import { ApiResponse } from "@/types";
+import {
+  Activity,
+  CalendarDays,
+  History,
+  Loader2,
+  Pencil,
+  Server,
+  Trash2,
+} from "lucide-react";
+import { Dispatch, SetStateAction, useState } from "react";
+import { toast } from "sonner";
 import BackupForm from "./backup-form";
 import RestoreForm from "./restore-form";
 
@@ -30,6 +42,37 @@ export default function DatabaseCard({
   setOpenAddDatabaseDialog,
   setOpenDeleteDialog,
 }: Props) {
+  const [pingStatus, setPingStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+
+  const handlePing = async () => {
+    setPingStatus("loading");
+
+    try {
+      const response = await fetch("/api/database/ping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: database.id }),
+      });
+
+      const { error } = (await response.json()) as ApiResponse<null>;
+
+      if (error) {
+        setPingStatus("error");
+        return toast.error(error.message);
+      }
+
+      setPingStatus("success");
+      toast.success("Database connection successful!");
+    } catch {
+      setPingStatus("error");
+      toast.error("Failed to connect to the database.");
+    } finally {
+      setTimeout(() => setPingStatus("idle"), 3000);
+    }
+  };
+
   return (
     <Card
       key={database.id}
@@ -46,6 +89,25 @@ export default function DatabaseCard({
             </CardTitle>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant={
+                pingStatus === "idle" || pingStatus === "loading"
+                  ? "ghost"
+                  : "default"
+              }
+              size="icon-sm"
+              onClick={handlePing}
+              disabled={pingStatus === "loading"}
+              className={` ${pingStatus === "success" ? "bg-green-500 text-white hover:bg-green-600" : ""} ${pingStatus === "error" ? "bg-red-500 text-white hover:bg-red-600" : ""} `}
+            >
+              {pingStatus === "loading" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Activity className="size-4" />
+              )}
+              <span className="sr-only">Ping database</span>
+            </Button>
+
             <Button
               variant="ghost"
               size="icon-sm"
