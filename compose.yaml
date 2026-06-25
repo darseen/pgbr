@@ -1,13 +1,12 @@
 services:
-  pgbr:
+  dashboard:
     build:
       context: .
-      dockerfile: Dockerfile.dev
-    container_name: pgbr_service
+      dockerfile: ./apps/dashboard/Dockerfile.dev
+    container_name: dashboard
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://root:password@postgres:5432/pgbr_db
       - PGBR_DATA=/var/lib/pgbr/data
       - NEXT_TELEMETRY_DISABLED=1
       - BASE_URL=http://localhost:3000
@@ -24,17 +23,16 @@ services:
     develop:
       watch:
         - action: sync
-          path: .
-          target: /app
+          path: ./apps/dashboard
+          target: /app/apps/dashboard
           ignore:
             - node_modules/
             - .next/
-            - .git/
 
         - action: rebuild
-          path: package.json
+          path: ./apps/dashboard/package.json
         - action: rebuild
-          path: pnpm-lock.yaml
+          path: ./pnpm-lock.yaml
 
   test_db1:
     image: postgres:18-alpine

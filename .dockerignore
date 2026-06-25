@@ -1,4 +1,10 @@
 node_modules
 .next
 .turbo
+.vscode
+.github
 data
+LICENSE
+README.md
+.gitignore
+compose.yaml

@@ -1,0 +1,22 @@
+FROM node:24-alpine
+
+RUN apk update && apk add --no-cache libc6-compat postgresql-client openssl
+
+WORKDIR /app
+
+RUN corepack enable pnpm 
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY . .
+RUN pnpm install --frozen-lockfile
+
+RUN sed -i 's/\r$//' ./apps/dashboard/entrypoint.sh && chmod +x ./apps/dashboard/entrypoint.sh
+
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+
+EXPOSE 3000
+
+ENTRYPOINT ["./apps/dashboard/entrypoint.sh"]
+
+CMD ["pnpm", "dev"]
