@@ -4,8 +4,7 @@
 
 <br/>
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/darseen/pgbr?style=for-the-badge)](https://hub.docker.com/r/darseen/pgbr)
-![Docker Image Version (tag)](https://img.shields.io/docker/v/darseen/pgbr/latest?style=for-the-badge)
+[![Version](https://img.shields.io/github/v/tag/darseen/pgbr?style=for-the-badge&label=version)](https://github.com/darseen/pgbr/pkgs/container/pgbr-dashboard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 <br/>
 <br/>
@@ -33,12 +32,12 @@ Getting your own pgbr instance running is simple. All you need is Docker install
 
 ### 1\. Pull the Docker Image
 
-Pull the latest image from Docker Hub.
+Pull the latest image from the GitHub Container Registry.
 
 Bash
 
 ```
-docker pull darseen/pgbr:latest
+docker pull ghcr.io/darseen/pgbr-dashboard:latest
 ```
 
 ### 2\. Run the Container
@@ -54,7 +53,7 @@ docker run -d\
   -e AUTH_SECRET="your-secret-key"\
   -e BASE_URL="http://<your-server-ip>:3000"\
   --name pgbr\
-  darseen/pgbr:latest
+  ghcr.io/darseen/pgbr-dashboard:latest
 
 ```
 
