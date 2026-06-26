@@ -1,7 +1,9 @@
 name: Dashboard CI
 
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - "*"
 
 jobs:
   build-and-push:
