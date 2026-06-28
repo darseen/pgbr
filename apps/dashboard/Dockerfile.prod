@@ -41,10 +41,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV HOSTNAME="0.0.0.0"
-
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
@@ -61,7 +57,11 @@ COPY --from=installer /app/apps/dashboard/db ./apps/dashboard/db
 RUN chmod +x ./apps/dashboard/entrypoint.sh
 
 EXPOSE 3000
+
 ENV PORT=3000
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME="0.0.0.0"
 
 ENTRYPOINT ["./apps/dashboard/entrypoint.sh"]
 CMD ["node", "apps/dashboard/server.js"]

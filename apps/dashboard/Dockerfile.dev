@@ -18,5 +18,4 @@ ENV NEXT_TELEMETRY_DISABLED=1
 EXPOSE 3000
 
 ENTRYPOINT ["./apps/dashboard/entrypoint.sh"]
-
 CMD ["pnpm", "dev"]

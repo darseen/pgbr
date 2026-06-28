@@ -1,18 +1,18 @@
-import { db } from "@/db";
 import {
   accountsTable,
   sessionsTable,
   usersTable,
   verificationsTable,
 } from "@/db/schema";
-import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { betterAuth } from "better-auth/minimal";
 import { username } from "better-auth/plugins";
 import { hostname } from "node:os";
+import { db } from "../db";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: "sqlite",
+    provider: "pg",
     schema: {
       user: usersTable,
       session: sessionsTable,

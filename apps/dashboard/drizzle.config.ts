@@ -1,16 +1,14 @@
 import { defineConfig } from "drizzle-kit";
-import path from "node:path";
 
-const pgbrDataUrl = path.join(
-  `file:${process.env.PGBR_DATA ?? "./data"}`,
-  "pgbr.db",
-);
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is not set");
+}
 
 export default defineConfig({
-  dialect: "sqlite",
+  dialect: "postgresql",
   schema: "./db/schema/index.ts",
   dbCredentials: {
-    url: pgbrDataUrl,
+    url: process.env.DATABASE_URL,
   },
   casing: "snake_case",
 });

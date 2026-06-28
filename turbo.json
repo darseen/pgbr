@@ -5,7 +5,8 @@
     "AUTH_SECRET",
     "BASE_URL",
     "NODE_ENV",
-    "NEXT_TELEMETRY_DISABLED"
+    "NEXT_TELEMETRY_DISABLED",
+    "DATABASE_URL"
   ],
   "tasks": {
     "build": {

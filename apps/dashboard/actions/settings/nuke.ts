@@ -17,10 +17,10 @@ export default async function nuke() {
   try {
     const backupsPath = getBackupsPath();
 
-    db.transaction((tx) => {
-      tx.delete(databasesTable).run();
-      tx.delete(backupJobsTable).run();
-      tx.delete(restoreJobsTable).run();
+    await db.transaction(async (tx) => {
+      await tx.delete(databasesTable);
+      await tx.delete(backupJobsTable);
+      await tx.delete(restoreJobsTable);
     });
 
     await fs.rm(backupsPath, { recursive: true });

@@ -1,14 +1,14 @@
 import { InferSelectModel, relations } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, pgTable, text, uuid } from "drizzle-orm/pg-core";
 import { timestamps } from "./_utils/shared-columns";
 import { usersTable } from "./auth";
 import { backupJobsTable } from "./backup-jobs";
 import { migrationJobsTable } from "./migration-jobs";
 import { restoreJobsTable } from "./restore-jobs";
 
-export const databasesTable = sqliteTable("databases", {
+export const databasesTable = pgTable("databases", {
   id: text().primaryKey(),
-  userId: text().references(() => usersTable.id, { onDelete: "set null" }),
+  userId: uuid().references(() => usersTable.id, { onDelete: "set null" }),
   name: text().notNull().unique(),
   url: text().notNull(),
   backupCount: integer().default(0).notNull(),

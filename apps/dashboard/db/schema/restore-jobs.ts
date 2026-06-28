@@ -1,6 +1,6 @@
 import { RestoreFlags } from "@/types";
 import { InferSelectModel, relations, sql } from "drizzle-orm";
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { pgTable, text, jsonb, timestamp, uuid } from "drizzle-orm/pg-core";
 import { timestamps } from "./_utils/shared-columns";
 import { usersTable } from "./auth";
 import { databasesTable } from "./databases";
@@ -12,23 +12,23 @@ export const restoreJobStatus = [
   "failed",
 ] as const;
 
-export const restoreJobsTable = sqliteTable("restore_jobs", {
+export const restoreJobsTable = pgTable("restore_jobs", {
   id: text().primaryKey(),
   databaseId: text().references(() => databasesTable.id, {
     onDelete: "set null",
   }),
   databaseName: text().notNull(),
   status: text({ enum: restoreJobStatus }).notNull(),
-  userId: text().references(() => usersTable.id, {
+  userId: uuid().references(() => usersTable.id, {
     onDelete: "set null",
   }),
   backupPath: text().notNull(),
-  flags: text({ mode: "json" }).$type<RestoreFlags>().notNull(),
+  flags: jsonb().$type<RestoreFlags>().notNull(),
   error: text(),
-  startedAt: text()
-    .default(sql`(CURRENT_TIMESTAMP)`)
+  startedAt: timestamp({ mode: 'string' })
+    .defaultNow()
     .notNull(),
-  completedAt: text(),
+  completedAt: timestamp({ mode: 'string' }),
   ...timestamps,
 });
 

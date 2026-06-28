@@ -7,18 +7,22 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - DATABASE_URL=postgres://root:password@pgbr_db:5432/pgbr
       - PGBR_DATA=/var/lib/pgbr/data
       - NEXT_TELEMETRY_DISABLED=1
       - BASE_URL=http://localhost:3000
       - AUTH_SECRET=3nC4dwLT/+COH6g+CqXwzZI6p6MmB3/5g0xvWzROYFc=
+      - ENCRYPTION_KEY=sjDvhC0lj8l3KQDUZDrlcqBQcdfeQGHbyOLOOQhNpaQ=
     volumes:
       - pgbr:/var/lib/pgbr/data
 
     depends_on:
+      pgbr_db:
+        condition: service_healthy
       test_db1:
-        condition: service_started
+        condition: service_healthy
       test_db2:
-        condition: service_started
+        condition: service_healthy
 
     develop:
       watch:
@@ -34,6 +38,23 @@ services:
         - action: rebuild
           path: ./pnpm-lock.yaml
 
+  pgbr_db:
+    image: postgres:18-alpine
+    container_name: pgbr_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_DB: pgbr
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d pgbr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pgbr_db:/var/lib/postgresql/data
+
   test_db1:
     image: postgres:18-alpine
     container_name: test_db1
@@ -43,6 +64,11 @@ services:
       POSTGRES_PASSWORD: password
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: pgbr_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d pgbr_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - test_db1:/var/lib/postgresql/data
 
@@ -55,10 +81,16 @@ services:
       POSTGRES_PASSWORD: password
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: pgbr_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d pgbr_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - test_db2:/var/lib/postgresql/data
 
 volumes:
   pgbr:
+  pgbr_db:
   test_db1:
   test_db2:

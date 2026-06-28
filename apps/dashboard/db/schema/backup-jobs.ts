@@ -1,6 +1,6 @@
 import { BackupFlags } from "@/types";
 import { InferSelectModel, relations, sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, pgTable, text, jsonb, timestamp, uuid } from "drizzle-orm/pg-core";
 import { timestamps } from "./_utils/shared-columns";
 import { usersTable } from "./auth";
 import { databasesTable } from "./databases";
@@ -12,24 +12,24 @@ export const backupJobStatus = [
   "failed",
 ] as const;
 
-export const backupJobsTable = sqliteTable("backup_jobs", {
+export const backupJobsTable = pgTable("backup_jobs", {
   id: text().primaryKey(),
   databaseId: text().references(() => databasesTable.id, {
     onDelete: "set null",
   }),
-  userId: text().references(() => usersTable.id, {
+  userId: uuid().references(() => usersTable.id, {
     onDelete: "set null",
   }),
   databaseName: text().notNull(),
   status: text({ enum: backupJobStatus }).notNull(),
   backupPath: text().notNull(),
-  flags: text({ mode: "json" }).$type<BackupFlags>().notNull(),
+  flags: jsonb().$type<BackupFlags>().notNull(),
   error: text(),
   size: integer().notNull().default(0),
-  startedAt: text()
-    .default(sql`(CURRENT_TIMESTAMP)`)
+  startedAt: timestamp({ mode: 'string' })
+    .defaultNow()
     .notNull(),
-  completedAt: text(),
+  completedAt: timestamp({ mode: 'string' }),
   ...timestamps,
 });
 
