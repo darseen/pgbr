@@ -41,18 +41,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY --from=builder /app/out/json/ .
-COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
-COPY --from=builder /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
-
-RUN pnpm install --frozen-lockfile
 
 COPY --from=installer /app/apps/dashboard/.next/standalone ./
 COPY --from=installer /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
 
 COPY --from=installer /app/apps/dashboard/entrypoint.sh ./apps/dashboard/entrypoint.sh
-COPY --from=installer /app/apps/dashboard/drizzle.config.ts ./apps/dashboard/drizzle.config.ts
 COPY --from=installer /app/apps/dashboard/db ./apps/dashboard/db
+COPY --from=installer /app/apps/dashboard/drizzle ./apps/dashboard/drizzle
 
 RUN chmod +x ./apps/dashboard/entrypoint.sh
 
