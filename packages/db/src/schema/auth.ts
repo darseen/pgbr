@@ -1,9 +1,9 @@
 import { relations, sql } from "drizzle-orm";
 import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { backupJobsTable } from "./backup-jobs";
-import { databasesTable } from "./databases";
-import { migrationJobsTable } from "./migration-jobs";
-import { restoreJobsTable } from "./restore-jobs";
+import { backupJobsTable } from "./backup-jobs.js";
+import { databasesTable } from "./databases.js";
+import { migrationJobsTable } from "./migration-jobs.js";
+import { restoreJobsTable } from "./restore-jobs.js";
 
 export const usersTable = pgTable("users",
   {

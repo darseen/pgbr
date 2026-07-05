@@ -1,7 +1,6 @@
 import crypto from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 
 export function encrypt(text: string): string {
   const iv = crypto.randomBytes(16);
@@ -21,7 +20,7 @@ export function decrypt(encryptedData: string): string {
     throw new Error("Invalid encrypted data format");
   }
 
-  const [ivHex, authTagHex, encryptedText] = parts;
+  const [ivHex, authTagHex, encryptedText] = parts as [string, string, string];
   const iv = Buffer.from(ivHex, "hex");
   const authTag = Buffer.from(authTagHex, "hex");
 
@@ -35,6 +34,7 @@ export function decrypt(encryptedData: string): string {
 }
 
 function getKey() {
+  const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
   if (!ENCRYPTION_KEY) {
     throw new Error("Missing ENCRYPTION_KEY environment variable.");
   }

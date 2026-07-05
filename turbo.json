@@ -6,7 +6,10 @@
     "BASE_URL",
     "NODE_ENV",
     "NEXT_TELEMETRY_DISABLED",
-    "DATABASE_URL"
+    "DATABASE_URL",
+    "ENCRYPTION_KEY",
+    "REDIS_URL",
+    "WORKER_CONCURRENCY"
   ],
   "tasks": {
     "build": {
@@ -14,11 +17,15 @@
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "dist/**"]
     },
     "dev": {
+      "dependsOn": ["^build"],
       "persistent": true,
       "cache": false
     },
     "lint": {
       "dependsOn": ["^lint"]
+    },
+    "check-types": {
+      "dependsOn": ["^build"]
     }
   }
 }

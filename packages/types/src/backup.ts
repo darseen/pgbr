@@ -1,5 +1,25 @@
 import z from "zod";
 
+export interface BackupFlags {
+  format: "custom" | "plain" | "directory" | "tar";
+  compress: boolean;
+  dataOnly: boolean;
+  schemaOnly: boolean;
+  clean: boolean;
+  create: boolean;
+  ifExists: boolean;
+  noOwner: boolean;
+  noPrivileges: boolean;
+  verbose: boolean;
+  jobs?: number | undefined;
+  inserts?: boolean | undefined;
+  excludeSchemas?: string[] | undefined;
+  includeSchemas?: string[] | undefined;
+  excludeTables?: string[] | undefined;
+  includeTables?: string[] | undefined;
+  excludeTableData?: string[] | undefined;
+}
+
 export const backupSchema = z
   .object({
     format: z.enum(["custom", "plain", "directory", "tar"]),

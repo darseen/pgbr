@@ -1,5 +1,24 @@
 import z from "zod";
 
+export interface RestoreFlags {
+  format: "custom" | "directory" | "tar";
+  dataOnly: boolean;
+  schemaOnly: boolean;
+  clean: boolean;
+  create: boolean;
+  noOwner: boolean;
+  noPrivileges: boolean;
+  disableTriggers: boolean;
+  verbose: boolean;
+  jobs?: number | undefined;
+  singleTransaction: boolean;
+  exitOnError: boolean;
+  ifExists: boolean;
+  excludeSchemas?: string[] | undefined;
+  includeSchemas?: string[] | undefined;
+  includeTables?: string[] | undefined;
+}
+
 export const restoreSchema = z
   .object({
     format: z.enum(["custom", "directory", "tar"]),

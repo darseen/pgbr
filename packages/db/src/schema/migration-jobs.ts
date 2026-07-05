@@ -1,9 +1,10 @@
-import { BackupFlags, RestoreFlags } from "@/types";
-import { InferSelectModel, relations, sql } from "drizzle-orm";
+import type { BackupFlags, RestoreFlags } from "@repo/types";
+import type { InferSelectModel } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import { integer, pgTable, text, jsonb, timestamp, uuid } from "drizzle-orm/pg-core";
-import { timestamps } from "./_utils/shared-columns";
-import { usersTable } from "./auth";
-import { databasesTable } from "./databases";
+import { timestamps } from "./_utils/shared-columns.js";
+import { usersTable } from "./auth.js";
+import { databasesTable } from "./databases.js";
 
 export const migrationJobStatus = [
   "pending",

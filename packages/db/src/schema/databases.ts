@@ -1,10 +1,11 @@
-import { InferSelectModel, relations } from "drizzle-orm";
+import type { InferSelectModel } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 import { integer, pgTable, text, uuid } from "drizzle-orm/pg-core";
-import { timestamps } from "./_utils/shared-columns";
-import { usersTable } from "./auth";
-import { backupJobsTable } from "./backup-jobs";
-import { migrationJobsTable } from "./migration-jobs";
-import { restoreJobsTable } from "./restore-jobs";
+import { timestamps } from "./_utils/shared-columns.js";
+import { usersTable } from "./auth.js";
+import { backupJobsTable } from "./backup-jobs.js";
+import { migrationJobsTable } from "./migration-jobs.js";
+import { restoreJobsTable } from "./restore-jobs.js";
 
 export const databasesTable = pgTable("databases", {
   id: text().primaryKey(),
