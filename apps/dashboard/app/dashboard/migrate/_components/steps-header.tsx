@@ -1,4 +1,4 @@
-import { MigrationJobStatus } from "@/db/schema";
+import { MigrationJobStatus } from "@repo/db/schema";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 interface Props {

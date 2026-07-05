@@ -36,9 +36,10 @@ export default function SignUpForm() {
 
       if (!result.success) return toast.error(result.error.issues[0].message);
 
-      const { status } = await checkUser();
+      const { data, error: checkError } = await checkUser();
 
-      if (status !== 404) return toast.error("User already exists");
+      if (checkError) return toast.error(checkError.message);
+      if (data?.exists) return toast.error("An admin account already exists");
 
       const { error } = await authClient.signUp.email({
         email: result.data.email,

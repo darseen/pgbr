@@ -10,9 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Database } from "@/db/schema";
-import { BackupJob } from "@/db/schema/backup-jobs";
-import { ApiResponse } from "@/types";
+import pingDatabase from "@/actions/database/ping";
+import { BackupJob, Database } from "@repo/db/schema";
 import {
   Activity,
   CalendarDays,
@@ -50,13 +49,7 @@ export default function DatabaseCard({
     setPingStatus("loading");
 
     try {
-      const response = await fetch("/api/database/ping", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: database.id }),
-      });
-
-      const { error } = (await response.json()) as ApiResponse<null>;
+      const { error } = await pingDatabase(database.id);
 
       if (error) {
         setPingStatus("error");

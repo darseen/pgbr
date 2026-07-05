@@ -5,8 +5,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { db } from "@/db";
-import { backupJobsTable } from "@/db/schema";
+import { db } from "@repo/db";
+import { backupJobsTable } from "@repo/db/schema";
 import { auth } from "@/lib/auth";
 import { formatFileSize } from "@/utils";
 import { desc, eq } from "drizzle-orm";

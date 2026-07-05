@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BackupJob } from "@/db/schema";
+import { BackupJob } from "@repo/db/schema";
 import { formatFileSize } from "@/utils";
 import {
   ColumnDef,

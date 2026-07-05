@@ -3,12 +3,12 @@ import {
   sessionsTable,
   usersTable,
   verificationsTable,
-} from "@/db/schema";
+} from "@repo/db/schema";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth/minimal";
 import { username } from "better-auth/plugins";
 import { hostname } from "node:os";
-import { db } from "../db";
+import { db } from "@repo/db";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {

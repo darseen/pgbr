@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import SeparatorWithText from "@/components/ui/separator-with-text";
-import { MigrationJob } from "@/db/schema"; // Update this path to match where your schema is exported
+import { MigrationJob } from "@repo/db/schema"; // Update this path to match where your schema is exported
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRight } from "lucide-react";
 import getStatusBadge from "./get-status-badge";

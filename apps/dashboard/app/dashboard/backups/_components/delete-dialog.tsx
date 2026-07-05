@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ApiResponse } from "@/types";
+import deleteBackupJobs from "@/actions/backup/delete";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dispatch, SetStateAction } from "react";
@@ -38,14 +38,7 @@ export default function DeleteBackupDialog({
   const handleDelete = async (ids: string[]) => {
     try {
       setIsDeleting(true);
-      const response = await fetch("/api/backup", {
-        method: "DELETE",
-        body: JSON.stringify({ ids }),
-      });
-
-      const { error } = (await response.json()) as ApiResponse<{
-        backupJobsIds: string[];
-      }>;
+      const { error } = await deleteBackupJobs(ids);
 
       if (error) return toast.error(error.message);
 

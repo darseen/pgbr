@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import SeparatorWithText from "@/components/ui/separator-with-text";
-import { BackupJob } from "@/db/schema";
+import { BackupJob } from "@repo/db/schema";
 import { formatDistanceToNow } from "date-fns";
 import getStatusBadge from "./get-status-badge";
 import getStatusIcon from "./get-status-icon";

@@ -1,27 +1,23 @@
 "use server";
 
-import { db } from "@/db";
-import { usersTable } from "@/db/schema";
+import { db } from "@repo/db";
+import { usersTable } from "@repo/db/schema";
 
+// Only reports whether an account exists — this action is reachable without
+// a session, so it must never return user data.
 export default async function checkUser() {
   try {
-    const users = await db.select().from(usersTable);
+    const [user] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .limit(1);
 
-    if (users.length === 0) {
-      return {
-        data: null,
-        error: { message: "User not found" },
-        status: 404,
-      };
-    }
-
-    return { data: users[0], error: null, status: 200 };
+    return { data: { exists: !!user }, error: null };
   } catch (error) {
     console.error(error);
     return {
       data: null,
       error: { message: "Internal server error" },
-      status: 500,
     };
   }
 }

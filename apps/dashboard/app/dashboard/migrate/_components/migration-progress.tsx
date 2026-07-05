@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { MigrationJobStatus } from "@/db/schema";
+import { MigrationJobStatus } from "@repo/db/schema";
 import {
   AlertCircle,
   CheckCircle2,

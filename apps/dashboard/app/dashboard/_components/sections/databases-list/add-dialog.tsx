@@ -12,8 +12,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { Database } from "@/db/schema";
-import { ApiResponse } from "@/types";
+import createDatabase from "@/actions/database/create";
+import updateDatabase from "@/actions/database/update";
+import { Database } from "@repo/db/schema";
 import { useRouter } from "next/navigation";
 import { Dispatch, SetStateAction, SubmitEvent, useState } from "react";
 import { toast } from "sonner";
@@ -50,18 +51,9 @@ export default function AddDatabaseDialog({
     setIsLoading(true);
 
     try {
-      const method = isEditing ? "PUT" : "POST";
-      const body = isEditing ? { id: database.id, ...formData } : formData;
-
-      const res = await fetch("/api/database", {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const { error } = (await res.json()) as ApiResponse<{
-        database: Database;
-      }>;
+      const { error } = isEditing
+        ? await updateDatabase({ id: database.id, ...formData })
+        : await createDatabase(formData);
 
       if (error) {
         toast.error(error.message);

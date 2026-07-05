@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BackupJob, MigrationJob, RestoreJob } from "@/db/schema";
+import { BackupJob, MigrationJob, RestoreJob } from "@repo/db/schema";
 import { ArrowDownUp, Download, Upload } from "lucide-react";
 import BackupJobCard from "./backup-job-card";
 import MigrationJobCard from "./migration-job-card";

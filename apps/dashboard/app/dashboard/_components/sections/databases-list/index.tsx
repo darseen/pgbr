@@ -2,8 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Database } from "@/db/schema";
-import { BackupJob } from "@/db/schema/backup-jobs";
+import { BackupJob, Database } from "@repo/db/schema";
 import { Plus, Server } from "lucide-react";
 import { useState } from "react";
 import AddDatabaseDialog from "./add-dialog";

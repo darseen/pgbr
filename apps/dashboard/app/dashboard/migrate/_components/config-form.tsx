@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Database } from "@/db/schema";
+import { Database } from "@repo/db/schema";
 import { BackupFlags, RestoreFlags } from "@/types";
 import {
   AlertCircle,

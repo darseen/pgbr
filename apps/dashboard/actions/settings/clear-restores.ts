@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "@/db";
-import { restoreJobsTable } from "@/db/schema";
+import { db } from "@repo/db";
+import { restoreJobsTable } from "@repo/db/schema";
 import { auth } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";

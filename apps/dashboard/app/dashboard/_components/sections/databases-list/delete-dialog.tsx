@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 
-import { Database } from "@/db/schema";
-import { ApiResponse } from "@/types";
+import deleteDatabase from "@/actions/database/delete";
+import { Database } from "@repo/db/schema";
 import { useRouter } from "next/navigation";
 import { Dispatch, SetStateAction, useState } from "react";
 import { toast } from "sonner";
@@ -43,11 +43,7 @@ export default function DeleteDatabaseDialog({
     setIsLoading(true);
 
     try {
-      const res = await fetch(`/api/database?id=${database.id}`, {
-        method: "DELETE",
-      });
-
-      const { error } = (await res.json()) as ApiResponse<null>;
+      const { error } = await deleteDatabase(database.id);
       if (error) {
         toast.error(error.message);
         return;

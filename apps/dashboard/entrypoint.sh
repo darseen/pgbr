@@ -13,6 +13,10 @@ fi
 
 # check for BASE_URL
 if [ -z "${BASE_URL}" ]; then
+  if [ "${NODE_ENV}" = "production" ]; then
+    echo ">>> ERROR: BASE_URL must be set in production. Set it to the URL of your pgbr instance (e.g. http://<your-server-ip>:3000)." >&2
+    exit 1
+  fi
   echo ">>> BASE_URL is not set. Please set BASE_URL to the URL of your pgbr instance."
 else
   echo ">>> Using BASE_URL: ${BASE_URL}"
@@ -25,6 +29,6 @@ echo ">>> Ensuring database directory exists at $PGBR_DATA..."
 mkdir -p "$PGBR_DATA"
 
 echo ">>> Running database migrations..."
-node apps/dashboard/db/migrate.js
+node packages/db/dist/migrate.js
 
 exec "$@"

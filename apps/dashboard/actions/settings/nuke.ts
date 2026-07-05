@@ -1,9 +1,14 @@
 "use server";
 
-import { db } from "@/db";
-import { backupJobsTable, databasesTable, restoreJobsTable } from "@/db/schema";
+import { db } from "@repo/db";
+import {
+  backupJobsTable,
+  databasesTable,
+  migrationJobsTable,
+  restoreJobsTable,
+} from "@repo/db/schema";
 import { auth } from "@/lib/auth";
-import { getBackupsPath } from "@/utils";
+import { getBackupsPath } from "@repo/shared";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import fs from "node:fs/promises";
@@ -21,9 +26,10 @@ export default async function nuke() {
       await tx.delete(databasesTable);
       await tx.delete(backupJobsTable);
       await tx.delete(restoreJobsTable);
+      await tx.delete(migrationJobsTable);
     });
 
-    await fs.rm(backupsPath, { recursive: true });
+    await fs.rm(backupsPath, { recursive: true, force: true });
 
     revalidatePath("/dashboard");
 

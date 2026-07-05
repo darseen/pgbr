@@ -1,7 +1,7 @@
 "use client";
 
 import { DEFAULT_BACKUP_FLAGS, DEFAULT_RESTORE_FLAGS } from "@/constants";
-import { Database, MigrationJobStatus } from "@/db/schema";
+import { Database, MigrationJobStatus } from "@repo/db/schema";
 import {
   ApiResponse,
   BackupFlags,

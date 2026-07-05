@@ -35,9 +35,8 @@ import {
 import SeparatorWithText from "@/components/ui/separator-with-text";
 import { Spinner } from "@/components/ui/spinner";
 import { DEFAULT_RESTORE_FLAGS } from "@/constants";
-import { Database } from "@/db/schema";
-import { BackupJob } from "@/db/schema/backup-jobs";
-import { restoreSchema, RestoreSchema } from "@/lib/zod/restore";
+import { BackupJob, Database } from "@repo/db/schema";
+import { restoreSchema, RestoreSchema } from "@repo/types";
 import type { ApiResponse } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Settings2, Upload } from "lucide-react";

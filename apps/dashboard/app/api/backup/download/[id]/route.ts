@@ -1,7 +1,7 @@
-import { db } from "@/db";
-import { backupJobsTable } from "@/db/schema";
+import { db } from "@repo/db";
+import { backupJobsTable } from "@repo/db/schema";
 import { auth } from "@/lib/auth";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import JSZip from "jszip";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
@@ -11,7 +11,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth.api.getSession({
@@ -28,7 +28,12 @@ export async function GET(
     const [backupJob] = await db
       .select()
       .from(backupJobsTable)
-      .where(eq(backupJobsTable.id, id));
+      .where(
+        and(
+          eq(backupJobsTable.id, id),
+          eq(backupJobsTable.userId, session.user.id),
+        ),
+      );
 
     if (!backupJob) {
       return NextResponse.json(

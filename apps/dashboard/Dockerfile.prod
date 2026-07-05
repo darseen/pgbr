@@ -46,8 +46,8 @@ COPY --from=installer /app/apps/dashboard/.next/standalone ./
 COPY --from=installer /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
 
 COPY --from=installer /app/apps/dashboard/entrypoint.sh ./apps/dashboard/entrypoint.sh
-COPY --from=installer /app/apps/dashboard/db ./apps/dashboard/db
-COPY --from=installer /app/apps/dashboard/drizzle ./apps/dashboard/drizzle
+COPY --from=installer /app/packages/db/dist ./packages/db/dist
+COPY --from=installer /app/packages/db/drizzle ./packages/db/drizzle
 
 RUN chmod +x ./apps/dashboard/entrypoint.sh
 

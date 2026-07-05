@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "./db";
-import { usersTable } from "./db/schema";
+import { db, usersTable } from "@repo/db";
 import { auth } from "./lib/auth";
 
 export async function proxy(request: NextRequest) {

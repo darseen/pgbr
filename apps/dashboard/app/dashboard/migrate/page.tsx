@@ -1,5 +1,5 @@
-import { db } from "@/db";
-import { databasesTable } from "@/db/schema";
+import { db } from "@repo/db";
+import { databasesTable } from "@repo/db/schema";
 import { auth } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import { Metadata } from "next";
