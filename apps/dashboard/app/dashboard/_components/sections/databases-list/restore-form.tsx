@@ -59,7 +59,7 @@ export default function RestoreForm({
   const [isLoading, setIsLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState<string>("");
-  const [customPath, setCustomPath] = useState("");
+  const [customFile, setCustomFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const completedBackups = backupJobs.filter(
@@ -84,18 +84,35 @@ export default function RestoreForm({
   async function onSubmit(data: RestoreSchema) {
     setError(null);
 
-    if (!selectedBackup && !customPath) {
-      setError("Please select a backup or enter a custom path");
+    if (!selectedBackup && !customFile) {
+      setError("Please select a backup or upload a custom source file");
       return;
     }
 
     setIsLoading(true);
 
     try {
+      // A custom source is uploaded to the object store first; the worker then
+      // pulls it into scratch by key.
+      let customKey: string | undefined;
+      if (customFile) {
+        const res = await fetch("/api/backup/upload", {
+          method: "POST",
+          headers: { "x-filename": customFile.name },
+          body: customFile,
+        });
+        const body = await res.json();
+        if (!res.ok || body.error) {
+          setError(body.error?.message ?? "Failed to upload custom source");
+          return;
+        }
+        customKey = body.data.key;
+      }
+
       const { error } = await runRestore({
         databaseId: database.id,
         backupJobId: selectedBackup || undefined,
-        backupPath: customPath || undefined,
+        customKey,
         flags: data,
       });
 
@@ -108,7 +125,7 @@ export default function RestoreForm({
       router.refresh();
       setOpen(false);
       setSelectedBackup("");
-      setCustomPath("");
+      setCustomFile(null);
       form.reset(DEFAULT_RESTORE_FLAGS);
     } catch {
       setError("An unexpected error occurred");
@@ -151,9 +168,9 @@ export default function RestoreForm({
                   value={selectedBackup}
                   onValueChange={(v) => {
                     setSelectedBackup(v);
-                    if (v) setCustomPath("");
+                    if (v) setCustomFile(null);
                   }}
-                  disabled={isLoading || !!customPath}
+                  disabled={isLoading || !!customFile}
                 >
                   <SelectTrigger id="backup-select" className="w-full">
                     <SelectValue placeholder="Choose a backup..." />
@@ -161,7 +178,7 @@ export default function RestoreForm({
                   <SelectContent>
                     {completedBackups.map((backup) => (
                       <SelectItem key={backup.id} value={backup.id}>
-                        {backup.backupPath.split("/").pop()}
+                        {backup.storageKey.split("/").pop()}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -174,19 +191,24 @@ export default function RestoreForm({
             </FieldGroup>
 
             <FieldGroup className="space-y-2">
-              <FieldLabel htmlFor="custom-path">
-                Or Custom Backup Path
+              <FieldLabel htmlFor="custom-file">
+                Or Upload a Backup File
               </FieldLabel>
               <Input
-                id="custom-path"
-                placeholder="/path/to/backup.dump"
-                value={customPath}
+                id="custom-file"
+                type="file"
                 onChange={(e) => {
-                  setCustomPath(e.target.value);
-                  if (e.target.value) setSelectedBackup("");
+                  const file = e.target.files?.[0] ?? null;
+                  setCustomFile(file);
+                  if (file) setSelectedBackup("");
                 }}
-                disabled={isLoading}
+                disabled={isLoading || !!selectedBackup}
               />
+              {customFile && (
+                <FieldDescription className="text-sm">
+                  Selected: {customFile.name}
+                </FieldDescription>
+              )}
             </FieldGroup>
           </div>
 

@@ -1,24 +1,25 @@
 import { db, backupJobsTable, databasesTable } from "@repo/db";
 import { decrypt } from "@repo/shared";
+import { buildBackupKey, getStore } from "@repo/storage";
 import { backupSchema, type BackupJobPayload } from "@repo/types";
 import type { Job } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
-import { format } from "date-fns";
-import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import fs from "node:fs/promises";
 import path from "node:path";
-import { getBackupsPath } from "../lib/paths.js";
-import { buildPgDumpArgs, getDirectorySize } from "../lib/pg-args.js";
+import { tarDirectory } from "../lib/archive.js";
+import { buildPgDumpArgs } from "../lib/pg-args.js";
+import { cleanupScratch, createScratchDir } from "../lib/paths.js";
 import { pruneScheduleBackups } from "../lib/retention.js";
+import { runProcess } from "../lib/run-process.js";
 
 export async function processBackup(job: Job<BackupJobPayload>) {
   const { jobId, userId, databaseId, scheduleId, flags: rawFlags } = job.data;
 
-  // User-triggered jobs carry a dashboard-generated UUID; scheduled jobs
-  // don't (BullMQ scheduler job ids look like "repeat:<id>:<ts>", unusable
-  // as a filename suffix), so generate the row id here instead.
-  const rowId = jobId ?? randomUUID();
+  // User-triggered jobs carry a dashboard-generated UUID. Scheduled jobs don't,
+  // so fall back to the BullMQ job id: it's stable across a stalled-job
+  // re-delivery, which keeps the idempotent upsert below from orphaning a
+  // "running" row when a worker crashes and another reprocesses the job.
+  const rowId = jobId ?? job.id ?? randomUUID();
 
   const flagResult = backupSchema.safeParse(rawFlags);
   if (!flagResult.success) {
@@ -35,24 +36,10 @@ export async function processBackup(job: Job<BackupJobPayload>) {
     throw new Error("Database not found");
   }
 
-  const extensionMap: Record<string, string> = {
-    custom: "backup",
-    plain: "sql",
-    directory: "dir",
-    tar: "tar",
-  };
+  const storageKey = buildBackupKey(rowId, flags.format);
 
-  // Sanitize the name so it can't inject path separators, use 24-hour time,
-  // and suffix with the job id so concurrent backups of the same database
-  // can never overwrite each other.
-  const safeName = database.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const timestamp = format(new Date(), "yyyy-MM-dd_HH-mm-ss");
-  const fileName = `${safeName}_${timestamp}_${rowId.slice(0, 8)}.${extensionMap[flags.format]}`;
-  const backupDir = getBackupsPath();
-
-  await fs.mkdir(backupDir, { recursive: true });
-  const backupPath = path.join(backupDir, fileName);
-
+  // Idempotent insert: a stalled job re-delivered by BullMQ re-runs this
+  // processor; re-inserting the same row id must not crash a retry.
   const [backupJob] = await db
     .insert(backupJobsTable)
     .values({
@@ -62,95 +49,85 @@ export async function processBackup(job: Job<BackupJobPayload>) {
       scheduleId: scheduleId ?? null,
       databaseName: database.name,
       status: "running",
-      backupPath,
+      storageKey,
       flags,
+    })
+    .onConflictDoUpdate({
+      target: backupJobsTable.id,
+      set: { status: "running", storageKey, error: null, completedAt: null },
     })
     .returning();
 
   await job.updateProgress(backupJob!);
 
-  const args = buildPgDumpArgs(backupPath, flags, decrypt(database.url));
+  const scratchDir = await createScratchDir("pgbr-backup-");
+  try {
+    // Directory-format dumps write a directory that we then collapse into a
+    // single tar artifact; every other format writes a single file directly.
+    const isDirectory = flags.format === "directory";
+    const dumpTarget = isDirectory
+      ? path.join(scratchDir, "dump")
+      : path.join(scratchDir, "artifact");
+    const artifactPath = isDirectory
+      ? path.join(scratchDir, "artifact.tar")
+      : dumpTarget;
 
-  return new Promise((resolve, reject) => {
-    const pgDumpProcess = spawn("pg_dump", args, {
-      stdio: ["ignore", "ignore", "pipe"],
-    });
+    const args = buildPgDumpArgs(dumpTarget, flags, decrypt(database.url));
 
-    let errorOutput = "";
+    const result = await runProcess("pg_dump", args);
 
-    pgDumpProcess.stderr.on("data", (data) => {
-      errorOutput += data.toString();
-    });
+    if (result.code !== 0) {
+      throw new Error(
+        result.stderr.trim()
+          ? result.stderr.trim()
+          : `pg_dump exited with code ${result.code} (No standard error output)`,
+      );
+    }
 
-    pgDumpProcess.on("close", async (code) => {
-      try {
-        const finalStatus = code === 0 ? "completed" : "failed";
+    if (isDirectory) {
+      await tarDirectory(dumpTarget, artifactPath);
+    }
 
-        let errorMessage: string | null = null;
-        if (code !== 0) {
-          errorMessage = errorOutput.trim()
-            ? errorOutput.trim()
-            : `pg_dump exited with code ${code} (No standard error output)`;
-        }
+    const store = await getStore();
+    const { size } = await store.uploadFile(artifactPath, storageKey);
 
-        let size = 0;
-        if (code === 0) {
-          try {
-            const stat = await fs.stat(backupPath);
-            if (stat.isDirectory()) {
-              size = await getDirectorySize(backupPath);
-            } else {
-              size = stat.size;
-            }
-          } catch (error) {
-            console.error("Failed to calculate backup size", error);
-          }
-        }
+    const [updatedJob] = await db
+      .update(backupJobsTable)
+      .set({
+        status: "completed",
+        error: null,
+        completedAt: new Date().toISOString(),
+        size,
+      })
+      .where(eq(backupJobsTable.id, rowId))
+      .returning();
 
-        const [updatedJob] = await db
-          .update(backupJobsTable)
-          .set({
-            status: finalStatus,
-            error: errorMessage,
-            completedAt: new Date().toISOString(),
-            size,
-          })
-          .where(eq(backupJobsTable.id, rowId))
-          .returning();
+    await db
+      .update(databasesTable)
+      .set({ backupCount: sql`${databasesTable.backupCount} + 1` })
+      .where(eq(databasesTable.id, databaseId));
 
-        if (code === 0) {
-          await db
-            .update(databasesTable)
-            .set({ backupCount: sql`${databasesTable.backupCount} + 1` })
-            .where(eq(databasesTable.id, databaseId));
+    // Retention failures must not fail an otherwise successful backup.
+    try {
+      await pruneScheduleBackups(scheduleId);
+    } catch (retentionError) {
+      console.error("Failed to prune scheduled backups", retentionError);
+    }
 
-          // Retention failures must not fail an otherwise successful backup.
-          try {
-            await pruneScheduleBackups(scheduleId);
-          } catch (retentionError) {
-            console.error("Failed to prune scheduled backups", retentionError);
-          }
-        }
-
-        resolve(updatedJob);
-      } catch (dbError) {
-        reject(dbError);
-      }
-    });
-
-    pgDumpProcess.on("error", async (err) => {
-      try {
-        await db
-          .update(backupJobsTable)
-          .set({
-            status: "failed",
-            error: err.message,
-            completedAt: new Date().toISOString(),
-          })
-          .where(eq(backupJobsTable.id, rowId));
-      } finally {
-        reject(err);
-      }
-    });
-  });
+    return updatedJob;
+  } catch (err) {
+    // Any failure after the row exists (dump, non-zero exit, tar, upload) must
+    // be recorded so the row never stays stuck in "running".
+    await db
+      .update(backupJobsTable)
+      .set({
+        status: "failed",
+        error: err instanceof Error ? err.message : String(err),
+        completedAt: new Date().toISOString(),
+      })
+      .where(eq(backupJobsTable.id, rowId));
+    throw err;
+  } finally {
+    await cleanupScratch(scratchDir);
+  }
 }

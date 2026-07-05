@@ -27,7 +27,9 @@ export const backupJobsTable = pgTable("backup_jobs", {
   }),
   databaseName: text().notNull(),
   status: text({ enum: backupJobStatus }).notNull(),
-  backupPath: text().notNull(),
+  // Logical object-store key ("wherever the store put this"), independent of
+  // any mount. Set once the artifact is uploaded.
+  storageKey: text().notNull(),
   flags: jsonb().$type<BackupFlags>().notNull(),
   error: text(),
   size: integer().notNull().default(0),

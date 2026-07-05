@@ -116,10 +116,10 @@ export default function BackupsTable({ backupJobs }: Props) {
       ),
     },
     {
-      accessorKey: "backupPath",
-      header: () => <span className="table-cell">File Path</span>,
+      accessorKey: "storageKey",
+      header: () => <span className="table-cell">Storage Key</span>,
       cell: ({ row }) => (
-        <CopyablePath path={row.getValue("backupPath") as string} />
+        <CopyablePath path={row.getValue("storageKey") as string} />
       ),
     },
     {
@@ -215,9 +215,9 @@ export default function BackupsTable({ backupJobs }: Props) {
     },
     globalFilterFn: (row, columnId, filterValue) => {
       const dbName = (row.getValue("databaseName") as string)?.toLowerCase();
-      const path = (row.getValue("backupPath") as string)?.toLowerCase();
+      const key = (row.getValue("storageKey") as string)?.toLowerCase();
       const search = filterValue.toLowerCase();
-      return dbName?.includes(search) || path?.includes(search);
+      return dbName?.includes(search) || key?.includes(search);
     },
   });
 
@@ -264,7 +264,7 @@ export default function BackupsTable({ backupJobs }: Props) {
             <div className="relative flex-1">
               <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               <Input
-                placeholder="Search by database name or file path..."
+                placeholder="Search by database name or storage key..."
                 value={globalFilter ?? ""}
                 onChange={(e) => setGlobalFilter(e.target.value)}
                 className="pl-9"

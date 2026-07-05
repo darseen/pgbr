@@ -5,17 +5,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { AlertTriangle, Bomb, Trash2 } from "lucide-react";
+import { AlertTriangle, Bomb, HardDrive, Trash2 } from "lucide-react";
 import { Metadata } from "next";
+import getStorageStatus from "@/actions/settings/storage/status";
 import ClearMigrationsDialog from "./_components/clear-migrations-dialog";
 import ClearRestoresDialog from "./_components/clear-restores-dialog";
 import NukeDialog from "./_components/nuke-dialog";
+import StorageSection from "./_components/storage-section";
 
 export const metadata: Metadata = {
   title: "Settings",
 };
 
-export default function Page() {
+export default async function Page() {
+  const { data: storageStatus } = await getStorageStatus();
+
   return (
     <div className="bg-background animate-in fade-in slide-in-from-bottom-4 min-h-screen duration-500">
       <main className="container mx-auto max-w-2xl px-4 py-8">
@@ -26,6 +30,29 @@ export default function Page() {
               Manage application settings and data
             </p>
           </div>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <HardDrive className="size-5" />
+                <CardTitle>Storage</CardTitle>
+              </div>
+              <CardDescription>
+                S3-compatible object store where backup artifacts live. Defaults
+                to the bundled store; point it at external object storage for
+                durability and scale.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {storageStatus ? (
+                <StorageSection status={storageStatus} />
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  Unable to load storage status.
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="border-destructive/50">
             <CardHeader>

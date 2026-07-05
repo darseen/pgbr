@@ -28,7 +28,7 @@
 
 ## Getting Started
 
-pgbr runs as three services: the **dashboard** (web UI + API), the **worker** (runs `pg_dump`/`pg_restore` jobs from a queue), and **Redis** (job queue backing store), all sharing a Postgres database and a data volume. Docker Compose is the easiest way to run all of them together.
+pgbr runs as stateless **dashboard** (web UI + API) and **worker** (runs `pg_dump`/`pg_restore` jobs from a queue) services backed by three stateful ones: **Postgres** (job metadata), **Redis** (job queue), and an **S3-compatible object store** that owns all backup artifacts. The dashboard and worker keep no durable local storage — they stream artifacts to/from the object store and use only throwaway scratch during a job, so you can run as many workers as you like against one bucket. A bundled **SeaweedFS** store makes a fresh install work with zero setup; point pgbr at external object storage (S3, R2, Backblaze, Wasabi, …) from the settings page for durability and scale. Docker Compose is the easiest way to run everything together.
 
 ### 1\. Pull the Docker Images
 
@@ -41,16 +41,26 @@ docker pull ghcr.io/darseen/pgbr-worker:latest
 
 ### 2\. Configure Your Environment
 
-The dashboard and the worker share the same `PGBR_DATA` volume, `DATABASE_URL`, `REDIS_URL`, and `ENCRYPTION_KEY` (the worker uses it to decrypt connection strings pulled off the queue). Put the shared values in one `.env` file and pass it to both containers so you don't have to keep two copies in sync:
+The dashboard and the worker share `DATABASE_URL`, `REDIS_URL`, `ENCRYPTION_KEY` (used to decrypt connection strings and stored storage credentials), and the `STORAGE_*` object-store connection. Put the shared values in one `.env` file and pass it to both containers so you don't have to keep two copies in sync:
 
 ```
 DATABASE_URL=postgresql://user:pass@host:5432/pgbr
 REDIS_URL=redis://redis:6379
 ENCRYPTION_KEY=your-encryption-key
 AUTH_SECRET=your-secret-key
+
+# Object store — defaults target the bundled SeaweedFS.
+STORAGE_ENDPOINT=http://seaweedfs:8333
+STORAGE_REGION=us-east-1
+STORAGE_BUCKET=pgbr
+STORAGE_ACCESS_KEY_ID=pgbr
+STORAGE_SECRET_ACCESS_KEY=pgbrsecret
+STORAGE_FORCE_PATH_STYLE=true
 ```
 
 `AUTH_SECRET` is only used by the dashboard, but it's harmless for the worker to also receive it from the shared file. `BASE_URL` is optional — see [Environment Variables](#environment-variables) — add it here too if you're behind a reverse proxy that needs it set explicitly.
+
+Object storage is configured with the `STORAGE_*` variables above. The dashboard settings page automatically checks this connection: when it's reachable it shows the active configuration read-only (marked as coming from environment variables); when it isn't, it shows fields to configure a store, which is then persisted encrypted in the database and overrides the env values.
 
 ### 3\. Run the Containers
 
@@ -61,19 +71,25 @@ docker network create pgbr
 
 docker run -d --network pgbr --name redis redis:8-alpine
 
+# Bundled object store — the only component that needs a durable volume.
+docker run -d --network pgbr \
+  -v /path/on/your/machine:/data \
+  --name seaweedfs \
+  chrislusf/seaweedfs:latest server -dir=/data -s3 -s3.port=8333
+
 docker run -d --network pgbr \
   -p 3000:3000 \
-  -v /path/on/your/machine:/var/lib/pgbr/data \
   --env-file .env \
   --name pgbr \
   ghcr.io/darseen/pgbr-dashboard:latest
 
 docker run -d --network pgbr \
-  -v /path/on/your/machine:/var/lib/pgbr/data \
   --env-file .env \
   --name pgbr-worker \
   ghcr.io/darseen/pgbr-worker:latest
 ```
+
+The dashboard and worker are stateless — no volumes. Only the object store holds durable data. To use external object storage instead of the bundled store, point the `STORAGE_*` values at it (or configure it in the dashboard settings page after first login), and drop the `seaweedfs` container.
 
 See `compose.yaml` in this repo for a full local development setup (Postgres, Redis, dashboard, and worker wired together).
 
@@ -91,19 +107,19 @@ Once the containers are running, you need to create your admin user to start man
 
 The following environment variables should be set for optimal security and configuration.
 
-- `PGBR_DATA`: The path to your data directory. Must be the same for the dashboard and the worker.
-
 - `DATABASE_URL`: The Postgres connection string for pgbr's own metadata database.
 
 - `REDIS_URL`: The Redis connection string used for the backup/restore/migrate job queue. Required by both the dashboard and the worker.
 
-- `ENCRYPTION_KEY`: Used to encrypt/decrypt stored connection strings. Must be identical on the dashboard and the worker.
+- `ENCRYPTION_KEY`: Used to encrypt/decrypt stored connection strings and storage credentials. Must be identical on the dashboard and the worker.
 
 - `AUTH_SECRET`: A secure, random string used to sign user sessions. Dashboard only.
 
 - `BASE_URL`: The base URL of your pgbr instance. Dashboard only, optional — auto-detected from incoming requests if unset. Set it explicitly only if you're behind a reverse proxy that doesn't forward the `Host` header correctly.
 
 - `WORKER_CONCURRENCY`: How many jobs each queue (backup/restore/migrate) processes concurrently. Worker only, defaults to `5`.
+
+- `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_FORCE_PATH_STYLE`: The S3-compatible object-store connection, defaulting to the bundled SeaweedFS. Should match on the dashboard and the worker. A connection saved from the dashboard settings page is persisted encrypted in the database and takes precedence over these.
 
 ## Screenshots
 

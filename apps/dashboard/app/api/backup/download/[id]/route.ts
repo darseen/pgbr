@@ -1,22 +1,22 @@
 import { db } from "@repo/db";
 import { backupJobsTable } from "@repo/db/schema";
 import { auth } from "@/lib/auth";
+import { getStore } from "@repo/storage";
 import { and, eq } from "drizzle-orm";
-import JSZip from "jszip";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { createReadStream } from "node:fs";
-import { open, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
+// Brokered download: the dashboard reads the artifact from the object store and
+// proxies the bytes to the browser. Every backup is a single object (directory
+// dumps are collapsed into a tarball at upload time), so there's no on-the-fly
+// zipping anymore.
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await auth.api.getSession({ headers: await headers() });
 
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -42,58 +42,38 @@ export async function GET(
       );
     }
 
-    const backupPath = backupJob.backupPath;
-    const filename = path.basename(backupPath);
+    const filename = path.basename(backupJob.storageKey);
 
-    let fileStats;
+    let object;
     try {
-      fileStats = await stat(backupPath);
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      object = await getStore().then((store) =>
+        store.getObjectStream(backupJob.storageKey),
+      );
+    } catch (err) {
+      const status = (err as { $metadata?: { httpStatusCode?: number } })
+        .$metadata?.httpStatusCode;
+      if (status === 404) {
         return NextResponse.json(
-          { error: "File or directory not found on disk" },
+          { error: "Artifact not found in storage" },
           { status: 404 },
         );
       }
       throw err;
     }
 
-    if (fileStats.isDirectory()) {
-      const zip = new JSZip();
+    const webStream = Readable.toWeb(
+      object.stream,
+    ) as unknown as ReadableStream;
 
-      await addDirectoryToZip(zip, backupPath);
-
-      const nodeStream = zip.generateNodeStream({
-        type: "nodebuffer",
-        streamFiles: true,
-        compression: "DEFLATE",
-        compressionOptions: { level: 5 },
-      });
-
-      const webStream = Readable.toWeb(
-        nodeStream as Readable,
-      ) as unknown as ReadableStream;
-
-      return new NextResponse(webStream, {
-        status: 200,
-        headers: {
-          "Content-Type": "application/zip",
-          "Content-Disposition": `attachment; filename="${filename}.zip"`,
-        },
-      });
+    const responseHeaders: Record<string, string> = {
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    };
+    if (object.size) {
+      responseHeaders["Content-Length"] = object.size.toString();
     }
 
-    const fileHandle = await open(backupPath, "r");
-    const stream = fileHandle.readableWebStream();
-
-    return new NextResponse(stream as unknown as ReadableStream, {
-      status: 200,
-      headers: {
-        "Content-Type": "application/octet-stream",
-        "Content-Length": fileStats.size.toString(),
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      },
-    });
+    return new NextResponse(webStream, { status: 200, headers: responseHeaders });
   } catch (error) {
     console.error("Download streaming error:", error);
 
@@ -101,26 +81,5 @@ export async function GET(
       { error: "Internal server error" },
       { status: 500 },
     );
-  }
-}
-
-async function addDirectoryToZip(
-  zip: JSZip,
-  dirPath: string,
-  basePath: string = "",
-) {
-  const files = await readdir(dirPath);
-
-  for (const file of files) {
-    const fullPath = path.join(dirPath, file);
-    const fileStat = await stat(fullPath);
-    const zipPath = path.join(basePath, file).replace(/\\/g, "/");
-
-    if (fileStat.isDirectory()) {
-      zip.folder(zipPath);
-      await addDirectoryToZip(zip, fullPath, zipPath);
-    } else {
-      zip.file(zipPath, createReadStream(fullPath));
-    }
   }
 }

@@ -12,8 +12,10 @@ export interface RestoreJobPayload {
   jobId: string;
   userId: string;
   databaseId: string;
+  /** Restore from a tracked backup job. */
   backupJobId?: string;
-  backupPath?: string;
+  /** Object-store key of a user-uploaded custom source (in custom-uploads/). */
+  customKey?: string;
   flags: unknown;
 }
 

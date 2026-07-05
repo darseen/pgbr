@@ -1,6 +1,4 @@
 import type { BackupFlags, RestoreFlags } from "@repo/types";
-import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
 
 export function buildPgDumpArgs(
   outputPath: string | null,
@@ -86,27 +84,4 @@ export function buildPgRestoreArgs(
 
   args.push(targetPath);
   return args;
-}
-
-export async function getDirectorySize(dirPath: string): Promise<number> {
-  let totalSize = 0;
-
-  try {
-    const entries = await readdir(dirPath, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const fullPath = join(dirPath, entry.name);
-
-      if (entry.isDirectory()) {
-        totalSize += await getDirectorySize(fullPath);
-      } else {
-        const stats = await stat(fullPath);
-        totalSize += stats.size;
-      }
-    }
-  } catch (error) {
-    console.error(`Error calculating size for ${dirPath}:`, error);
-  }
-
-  return totalSize;
 }

@@ -1,5 +1,7 @@
 "use server";
 
+import { auth } from "@/lib/auth";
+import { getBackupQueue } from "@/lib/queue";
 import { db } from "@repo/db";
 import {
   backupJobsTable,
@@ -8,12 +10,9 @@ import {
   migrationJobsTable,
   restoreJobsTable,
 } from "@repo/db/schema";
-import { auth } from "@/lib/auth";
-import { getBackupQueue } from "@/lib/queue";
-import { getBackupsPath } from "@repo/shared";
+import { BACKUPS_PREFIX, CUSTOM_UPLOADS_PREFIX, getStore } from "@repo/storage";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import fs from "node:fs/promises";
 
 export default async function nuke() {
   const session = await auth.api.getSession({
@@ -22,8 +21,6 @@ export default async function nuke() {
   if (!session) return { data: null, error: { message: "Unauthorized" } };
 
   try {
-    const backupsPath = getBackupsPath();
-
     await db.transaction(async (tx) => {
       await tx.delete(backupSchedulesTable);
       await tx.delete(databasesTable);
@@ -39,7 +36,10 @@ export default async function nuke() {
       if (scheduler.key) await queue.removeJobScheduler(scheduler.key);
     }
 
-    await fs.rm(backupsPath, { recursive: true, force: true });
+    // Storage settings are intentionally preserved; only artifacts are removed.
+    const store = await getStore();
+    await store.deleteByPrefix(BACKUPS_PREFIX);
+    await store.deleteByPrefix(CUSTOM_UPLOADS_PREFIX);
 
     revalidatePath("/dashboard");
 

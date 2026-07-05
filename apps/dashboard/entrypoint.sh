@@ -17,12 +17,6 @@ else
   echo ">>> Using BASE_URL: ${BASE_URL}"
 fi
 
-# set a default path if PGBR_DATA isn't provided
-export PGBR_DATA=${PGBR_DATA:-/var/lib/pgbr/data}
-
-echo ">>> Ensuring database directory exists at $PGBR_DATA..."
-mkdir -p "$PGBR_DATA"
-
 echo ">>> Running database migrations..."
 node packages/db/dist/migrate.js
 

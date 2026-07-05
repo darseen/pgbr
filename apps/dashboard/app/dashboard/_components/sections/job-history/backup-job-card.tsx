@@ -31,7 +31,7 @@ export default function BackupJobCard({ job }: Props) {
               {getStatusBadge(job.status)}
             </CardTitle>
             <CardDescription className="mt-1 break-all">
-              {job.backupPath}
+              {job.storageKey}
             </CardDescription>
           </div>
         </div>

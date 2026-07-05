@@ -1,9 +1,8 @@
 import { db, backupJobsTable, backupSchedulesTable } from "@repo/db";
+import { getStore } from "@repo/storage";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import fs from "node:fs/promises";
-import { assertInsideDataDir } from "./paths.js";
 
-// Deletes completed backups (rows + files) beyond a schedule's keepLast
+// Deletes completed backups (rows + objects) beyond a schedule's keepLast
 // count. Failed rows are kept for visibility, and databases.backupCount is a
 // lifetime counter, so neither is touched — same as the manual delete action.
 export async function pruneScheduleBackups(scheduleId?: string) {
@@ -17,7 +16,7 @@ export async function pruneScheduleBackups(scheduleId?: string) {
   if (!schedule || schedule.keepLast == null) return;
 
   const completed = await db
-    .select({ id: backupJobsTable.id, backupPath: backupJobsTable.backupPath })
+    .select({ id: backupJobsTable.id, storageKey: backupJobsTable.storageKey })
     .from(backupJobsTable)
     .where(
       and(
@@ -37,12 +36,12 @@ export async function pruneScheduleBackups(scheduleId?: string) {
     ),
   );
 
+  const store = await getStore();
   for (const row of stale) {
     try {
-      assertInsideDataDir(row.backupPath);
-      await fs.rm(row.backupPath, { recursive: true, force: true });
+      await store.deleteObject(row.storageKey);
     } catch (error) {
-      console.error(`Failed to delete pruned backup ${row.backupPath}`, error);
+      console.error(`Failed to delete pruned backup ${row.storageKey}`, error);
     }
   }
 }

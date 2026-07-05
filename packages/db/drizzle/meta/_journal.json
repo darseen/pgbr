@@ -15,6 +15,20 @@
       "when": 1783250217829,
       "tag": "0001_late_blink",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783276460590,
+      "tag": "0002_add_storage_key_and_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783276482156,
+      "tag": "0003_drop_backup_path",
+      "breakpoints": true
     }
   ]
 }

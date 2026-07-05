@@ -1,8 +1,13 @@
 x-shared-env: &shared-env
   DATABASE_URL: postgres://root:password@pgbr_db:5432/pgbr
-  PGBR_DATA: /var/lib/pgbr/data
   ENCRYPTION_KEY: sjDvhC0lj8l3KQDUZDrlcqBQcdfeQGHbyOLOOQhNpaQ=
   REDIS_URL: redis://redis:6379
+  STORAGE_ENDPOINT: http://seaweedfs:8333
+  STORAGE_REGION: us-east-1
+  STORAGE_BUCKET: pgbr
+  STORAGE_ACCESS_KEY_ID: pgbr
+  STORAGE_SECRET_ACCESS_KEY: pgbrsecret
+  STORAGE_FORCE_PATH_STYLE: "true"
 
 services:
   dashboard:
@@ -16,8 +21,6 @@ services:
       <<: *shared-env
       NEXT_TELEMETRY_DISABLED: 1
       AUTH_SECRET: 3nC4dwLT/+COH6g+CqXwzZI6p6MmB3/5g0xvWzROYFc=
-    volumes:
-      - pgbr:/var/lib/pgbr/data
 
     depends_on:
       pgbr_db:
@@ -27,6 +30,8 @@ services:
       test_db2:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      seaweedfs:
         condition: service_healthy
 
     develop:
@@ -57,13 +62,13 @@ services:
     container_name: worker
     environment:
       <<: *shared-env
-    volumes:
-      - pgbr:/var/lib/pgbr/data
 
     depends_on:
       pgbr_db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      seaweedfs:
         condition: service_healthy
 
     develop:
@@ -97,7 +102,7 @@ services:
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: pgbr
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U root -d pgbr" ]
+      test: ["CMD-SHELL", "pg_isready -U root -d pgbr"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -111,10 +116,32 @@ services:
     ports:
       - "6379:6379"
     healthcheck:
-      test: [ "CMD-SHELL", "redis-cli ping" ]
+      test: ["CMD-SHELL", "redis-cli ping"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Bundled S3-compatible object store: the one stateful component that owns
+  # durable artifact storage. Point pgbr at external object storage from the
+  # dashboard settings page for real durability/scale.
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    container_name: seaweedfs
+    restart: unless-stopped
+    command: "server -dir=/data -s3 -s3.port=8333 -ip.bind=0.0.0.0"
+    ports:
+      - "8333:8333"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O - http://localhost:9333/cluster/healthz || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - seaweedfs_data:/data
 
   test_db1:
     image: postgres:18-alpine
@@ -126,7 +153,7 @@ services:
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: pgbr_test
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U root -d pgbr_test" ]
+      test: ["CMD-SHELL", "pg_isready -U root -d pgbr_test"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -143,7 +170,7 @@ services:
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: pgbr_test
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U root -d pgbr_test" ]
+      test: ["CMD-SHELL", "pg_isready -U root -d pgbr_test"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -151,7 +178,7 @@ services:
       - test_db2:/var/lib/postgresql/data
 
 volumes:
-  pgbr:
+  seaweedfs_data:
   pgbr_db:
   test_db1:
   test_db2:

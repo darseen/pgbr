@@ -15,7 +15,7 @@ import { randomUUID } from "node:crypto";
 export default async function runRestore(input: {
   databaseId: string;
   backupJobId?: string;
-  backupPath?: string;
+  customKey?: string;
   flags: unknown;
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -26,10 +26,10 @@ export default async function runRestore(input: {
     return { data: null, error: { message: "Database ID is required" } };
   }
 
-  if (!input.backupJobId && !input.backupPath) {
+  if (!input.backupJobId && !input.customKey) {
     return {
       data: null,
-      error: { message: "Backup Job ID or custom path is required" },
+      error: { message: "A tracked backup or a custom source is required" },
     };
   }
 
@@ -62,7 +62,7 @@ export default async function runRestore(input: {
       userId,
       databaseId: input.databaseId,
       backupJobId: input.backupJobId,
-      backupPath: input.backupPath,
+      customKey: input.customKey,
       flags: flagResult.data,
     };
 

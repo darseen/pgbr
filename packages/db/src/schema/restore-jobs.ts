@@ -23,7 +23,9 @@ export const restoreJobsTable = pgTable("restore_jobs", {
   userId: uuid().references(() => usersTable.id, {
     onDelete: "set null",
   }),
-  backupPath: text().notNull(),
+  // Object-store key the restore read from (a tracked backup's key, or the
+  // temporary key of a user-uploaded custom source).
+  storageKey: text().notNull(),
   flags: jsonb().$type<RestoreFlags>().notNull(),
   error: text(),
   startedAt: timestamp({ mode: 'string' })

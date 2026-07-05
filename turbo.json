@@ -1,7 +1,6 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "globalEnv": [
-    "PGBR_DATA",
     "AUTH_SECRET",
     "BASE_URL",
     "NODE_ENV",
@@ -9,7 +8,13 @@
     "DATABASE_URL",
     "ENCRYPTION_KEY",
     "REDIS_URL",
-    "WORKER_CONCURRENCY"
+    "WORKER_CONCURRENCY",
+    "STORAGE_ENDPOINT",
+    "STORAGE_REGION",
+    "STORAGE_BUCKET",
+    "STORAGE_ACCESS_KEY_ID",
+    "STORAGE_SECRET_ACCESS_KEY",
+    "STORAGE_FORCE_PATH_STYLE"
   ],
   "tasks": {
     "build": {

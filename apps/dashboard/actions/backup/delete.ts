@@ -3,9 +3,9 @@
 import { auth } from "@/lib/auth";
 import { db } from "@repo/db";
 import { backupJobsTable } from "@repo/db/schema";
+import { getStore } from "@repo/storage";
 import { and, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
-import fs from "node:fs/promises";
 
 export default async function deleteBackupJobs(ids: string[]) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -28,11 +28,11 @@ export default async function deleteBackupJobs(ids: string[]) {
       return { data: null, error: { message: "No backups found" } };
     }
 
-    const backupPaths: string[] = [];
+    const storageKeys: string[] = [];
     const backupJobsIds: string[] = [];
 
     backupJobs.forEach((job) => {
-      if (job.status === "completed") backupPaths.push(job.backupPath);
+      if (job.status === "completed") storageKeys.push(job.storageKey);
       backupJobsIds.push(job.id);
     });
 
@@ -42,9 +42,16 @@ export default async function deleteBackupJobs(ids: string[]) {
         and(inArray(backupJobsTable.id, ids), eq(backupJobsTable.userId, userId)),
       );
 
-    await Promise.all(
-      backupPaths.map((path) => fs.rm(path, { recursive: true, force: true })),
-    );
+    if (storageKeys.length > 0) {
+      const store = await getStore();
+      await Promise.all(
+        storageKeys.map((key) =>
+          store.deleteObject(key).catch((err) => {
+            console.error(`Failed to delete artifact ${key}`, err);
+          }),
+        ),
+      );
+    }
 
     return { data: { backupJobsIds }, error: null };
   } catch (error) {
