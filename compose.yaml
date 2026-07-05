@@ -1,3 +1,9 @@
+x-shared-env: &shared-env
+  DATABASE_URL: postgres://root:password@pgbr_db:5432/pgbr
+  PGBR_DATA: /var/lib/pgbr/data
+  ENCRYPTION_KEY: sjDvhC0lj8l3KQDUZDrlcqBQcdfeQGHbyOLOOQhNpaQ=
+  REDIS_URL: redis://redis:6379
+
 services:
   dashboard:
     build:
@@ -7,13 +13,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgres://root:password@pgbr_db:5432/pgbr
-      - PGBR_DATA=/var/lib/pgbr/data
-      - NEXT_TELEMETRY_DISABLED=1
-      - BASE_URL=http://localhost:3000
-      - AUTH_SECRET=3nC4dwLT/+COH6g+CqXwzZI6p6MmB3/5g0xvWzROYFc=
-      - ENCRYPTION_KEY=sjDvhC0lj8l3KQDUZDrlcqBQcdfeQGHbyOLOOQhNpaQ=
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
+      NEXT_TELEMETRY_DISABLED: 1
+      AUTH_SECRET: 3nC4dwLT/+COH6g+CqXwzZI6p6MmB3/5g0xvWzROYFc=
     volumes:
       - pgbr:/var/lib/pgbr/data
 
@@ -54,10 +56,7 @@ services:
       dockerfile: ./apps/worker/Dockerfile.dev
     container_name: worker
     environment:
-      - DATABASE_URL=postgres://root:password@pgbr_db:5432/pgbr
-      - PGBR_DATA=/var/lib/pgbr/data
-      - ENCRYPTION_KEY=sjDvhC0lj8l3KQDUZDrlcqBQcdfeQGHbyOLOOQhNpaQ=
-      - REDIS_URL=redis://redis:6379
+      <<: *shared-env
     volumes:
       - pgbr:/var/lib/pgbr/data
 

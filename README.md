@@ -39,9 +39,20 @@ docker pull ghcr.io/darseen/pgbr-dashboard:latest
 docker pull ghcr.io/darseen/pgbr-worker:latest
 ```
 
-### 2\. Run the Containers
+### 2\. Configure Your Environment
 
-Both the dashboard and the worker need to share the same `PGBR_DATA` volume, `DATABASE_URL`, and `ENCRYPTION_KEY` (the worker uses it to decrypt connection strings pulled off the queue). They also both need `REDIS_URL` pointing at the same Redis instance.
+The dashboard and the worker share the same `PGBR_DATA` volume, `DATABASE_URL`, `REDIS_URL`, and `ENCRYPTION_KEY` (the worker uses it to decrypt connection strings pulled off the queue). Put the shared values in one `.env` file and pass it to both containers so you don't have to keep two copies in sync:
+
+```
+DATABASE_URL=postgresql://user:pass@host:5432/pgbr
+REDIS_URL=redis://redis:6379
+ENCRYPTION_KEY=your-encryption-key
+AUTH_SECRET=your-secret-key
+```
+
+`AUTH_SECRET` is only used by the dashboard, but it's harmless for the worker to also receive it from the shared file. `BASE_URL` is optional — see [Environment Variables](#environment-variables) — add it here too if you're behind a reverse proxy that needs it set explicitly.
+
+### 3\. Run the Containers
 
 Bash
 
@@ -53,26 +64,20 @@ docker run -d --network pgbr --name redis redis:8-alpine
 docker run -d --network pgbr \
   -p 3000:3000 \
   -v /path/on/your/machine:/var/lib/pgbr/data \
-  -e DATABASE_URL="postgresql://user:pass@host:5432/pgbr" \
-  -e REDIS_URL="redis://redis:6379" \
-  -e ENCRYPTION_KEY="your-encryption-key" \
-  -e AUTH_SECRET="your-secret-key" \
-  -e BASE_URL="http://<your-server-ip>:3000" \
+  --env-file .env \
   --name pgbr \
   ghcr.io/darseen/pgbr-dashboard:latest
 
 docker run -d --network pgbr \
   -v /path/on/your/machine:/var/lib/pgbr/data \
-  -e DATABASE_URL="postgresql://user:pass@host:5432/pgbr" \
-  -e REDIS_URL="redis://redis:6379" \
-  -e ENCRYPTION_KEY="your-encryption-key" \
+  --env-file .env \
   --name pgbr-worker \
   ghcr.io/darseen/pgbr-worker:latest
 ```
 
 See `compose.yaml` in this repo for a full local development setup (Postgres, Redis, dashboard, and worker wired together).
 
-### 3\. Initial Setup
+### 4\. Initial Setup
 
 Once the containers are running, you need to create your admin user to start managing your databases.
 
@@ -96,7 +101,7 @@ The following environment variables should be set for optimal security and confi
 
 - `AUTH_SECRET`: A secure, random string used to sign user sessions. Dashboard only.
 
-- `BASE_URL`: The base URL of your pgbr instance. Dashboard only.
+- `BASE_URL`: The base URL of your pgbr instance. Dashboard only, optional — auto-detected from incoming requests if unset. Set it explicitly only if you're behind a reverse proxy that doesn't forward the `Host` header correctly.
 
 - `WORKER_CONCURRENCY`: How many jobs each queue (backup/restore/migrate) processes concurrently. Worker only, defaults to `5`.
 
