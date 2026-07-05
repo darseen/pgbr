@@ -28,38 +28,53 @@
 
 ## Getting Started
 
-Getting your own pgbr instance running is simple. All you need is Docker installed on your system.
+pgbr runs as three services: the **dashboard** (web UI + API), the **worker** (runs `pg_dump`/`pg_restore` jobs from a queue), and **Redis** (job queue backing store), all sharing a Postgres database and a data volume. Docker Compose is the easiest way to run all of them together.
 
-### 1\. Pull the Docker Image
-
-Pull the latest image from the GitHub Container Registry.
+### 1\. Pull the Docker Images
 
 Bash
 
 ```
 docker pull ghcr.io/darseen/pgbr-dashboard:latest
+docker pull ghcr.io/darseen/pgbr-worker:latest
 ```
 
-### 2\. Run the Container
+### 2\. Run the Containers
 
-Run the Docker container, mapping your volume, port, and setting your required environment variables:
+Both the dashboard and the worker need to share the same `PGBR_DATA` volume, `DATABASE_URL`, and `ENCRYPTION_KEY` (the worker uses it to decrypt connection strings pulled off the queue). They also both need `REDIS_URL` pointing at the same Redis instance.
 
 Bash
 
 ```
-docker run -d\
-  -p 3000:3000\
-  -v /path/on/your/machine:/var/lib/pgbr/data\
-  -e AUTH_SECRET="your-secret-key"\
-  -e BASE_URL="http://<your-server-ip>:3000"\
-  --name pgbr\
+docker network create pgbr
+
+docker run -d --network pgbr --name redis redis:8-alpine
+
+docker run -d --network pgbr \
+  -p 3000:3000 \
+  -v /path/on/your/machine:/var/lib/pgbr/data \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/pgbr" \
+  -e REDIS_URL="redis://redis:6379" \
+  -e ENCRYPTION_KEY="your-encryption-key" \
+  -e AUTH_SECRET="your-secret-key" \
+  -e BASE_URL="http://<your-server-ip>:3000" \
+  --name pgbr \
   ghcr.io/darseen/pgbr-dashboard:latest
 
+docker run -d --network pgbr \
+  -v /path/on/your/machine:/var/lib/pgbr/data \
+  -e DATABASE_URL="postgresql://user:pass@host:5432/pgbr" \
+  -e REDIS_URL="redis://redis:6379" \
+  -e ENCRYPTION_KEY="your-encryption-key" \
+  --name pgbr-worker \
+  ghcr.io/darseen/pgbr-worker:latest
 ```
+
+See `compose.yaml` in this repo for a full local development setup (Postgres, Redis, dashboard, and worker wired together).
 
 ### 3\. Initial Setup
 
-Once the container is running, you need to create your admin user to start managing your databases.
+Once the containers are running, you need to create your admin user to start managing your databases.
 
 1.  Navigate to your server's IP address on port 3000 in your web browser: `http://<your-server-ip>:3000`
 
@@ -71,11 +86,19 @@ Once the container is running, you need to create your admin user to start manag
 
 The following environment variables should be set for optimal security and configuration.
 
-- `PGBR_DATA`: The path to your data directory.
+- `PGBR_DATA`: The path to your data directory. Must be the same for the dashboard and the worker.
 
-- `AUTH_SECRET`: A secure, random string used to sign user sessions.
+- `DATABASE_URL`: The Postgres connection string for pgbr's own metadata database.
 
-- `BASE_URL`: The base URL of your pgbr instance.
+- `REDIS_URL`: The Redis connection string used for the backup/restore/migrate job queue. Required by both the dashboard and the worker.
+
+- `ENCRYPTION_KEY`: Used to encrypt/decrypt stored connection strings. Must be identical on the dashboard and the worker.
+
+- `AUTH_SECRET`: A secure, random string used to sign user sessions. Dashboard only.
+
+- `BASE_URL`: The base URL of your pgbr instance. Dashboard only.
+
+- `WORKER_CONCURRENCY`: How many jobs each queue (backup/restore/migrate) processes concurrently. Worker only, defaults to `5`.
 
 ## Screenshots
 
