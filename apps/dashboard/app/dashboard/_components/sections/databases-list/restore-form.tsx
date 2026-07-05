@@ -37,13 +37,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { DEFAULT_RESTORE_FLAGS } from "@/constants";
 import { BackupJob, Database } from "@repo/db/schema";
 import { restoreSchema, RestoreSchema } from "@repo/types";
-import type { ApiResponse } from "@/types";
+import runRestore from "@/actions/restore/run";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Settings2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { SSE } from "sse.js";
+import { toast } from "sonner";
 
 interface RestoreFormProps {
   database: Database;
@@ -92,50 +92,27 @@ export default function RestoreForm({
     setIsLoading(true);
 
     try {
-      const event = new SSE("/api/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        payload: JSON.stringify({
-          databaseId: database.id,
-          backupJobId: selectedBackup || undefined,
-          backupPath: customPath || undefined,
-          flags: data,
-        }),
+      const { error } = await runRestore({
+        databaseId: database.id,
+        backupJobId: selectedBackup || undefined,
+        backupPath: customPath || undefined,
+        flags: data,
       });
 
-      event.addEventListener("message", (e: object) => {
-        if ("data" in e && typeof e.data === "string") {
-          const response = JSON.parse(e.data);
+      if (error) {
+        setError(error.message);
+        return;
+      }
 
-          if (response.error) {
-            setError(response.error.message);
-            setIsLoading(false);
-            return;
-          }
-
-          router.refresh();
-          setOpen(false);
-          setSelectedBackup("");
-          setCustomPath("");
-          form.reset(DEFAULT_RESTORE_FLAGS);
-          setError(null);
-          setIsLoading(false);
-        }
-      });
-
-      event.addEventListener("error", (e: object) => {
-        if ("data" in e && typeof e.data === "string") {
-          const response = JSON.parse(e.data) as ApiResponse<null>;
-
-          if (response.error) {
-            setError(response.error.message);
-            setIsLoading(false);
-            return;
-          }
-        }
-      });
+      toast.success("Restore started");
+      router.refresh();
+      setOpen(false);
+      setSelectedBackup("");
+      setCustomPath("");
+      form.reset(DEFAULT_RESTORE_FLAGS);
     } catch {
       setError("An unexpected error occurred");
+    } finally {
       setIsLoading(false);
     }
   }
