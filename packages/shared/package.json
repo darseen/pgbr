@@ -11,6 +11,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/types": "workspace:*",
     "ioredis": "^5.10.1"
   },
   "devDependencies": {

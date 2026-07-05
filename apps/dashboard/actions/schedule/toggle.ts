@@ -3,12 +3,13 @@
 import { auth } from "@/lib/auth";
 import { getBackupQueue } from "@/lib/queue";
 import { db } from "@repo/db";
-import { backupSchedulesTable, databasesTable } from "@repo/db/schema";
+import { backupSchedulesTable } from "@repo/db/schema";
+import { buildScheduleTemplate } from "@repo/shared";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
-export default async function deleteDatabase(id: string) {
+export default async function toggleSchedule(id: string, enabled: boolean) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { data: null, error: { message: "Unauthorized" } };
   const userId = session.user.id;
@@ -18,28 +19,31 @@ export default async function deleteDatabase(id: string) {
   }
 
   try {
-    // Deleting the database cascades away its schedule rows, so grab their
-    // ids first to also unregister the BullMQ job schedulers.
-    const schedules = await db
-      .select({ id: backupSchedulesTable.id })
-      .from(backupSchedulesTable)
+    const [schedule] = await db
+      .update(backupSchedulesTable)
+      .set({ enabled })
       .where(
         and(
-          eq(backupSchedulesTable.databaseId, id),
+          eq(backupSchedulesTable.id, id),
           eq(backupSchedulesTable.userId, userId),
         ),
+      )
+      .returning();
+
+    if (!schedule) {
+      return { data: null, error: { message: "Schedule not found" } };
+    }
+
+    if (schedule.enabled) {
+      await getBackupQueue().upsertJobScheduler(
+        ...buildScheduleTemplate(schedule),
       );
-
-    await db
-      .delete(databasesTable)
-      .where(and(eq(databasesTable.id, id), eq(databasesTable.userId, userId)));
-
-    for (const schedule of schedules) {
+    } else {
       await getBackupQueue().removeJobScheduler(schedule.id);
     }
 
-    revalidatePath("/dashboard");
-    return { data: null, error: null };
+    revalidatePath("/dashboard/schedules");
+    return { data: { schedule }, error: null };
   } catch (error) {
     console.error(error);
     return { data: null, error: { message: "Internal server error" } };

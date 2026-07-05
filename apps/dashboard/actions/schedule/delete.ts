@@ -3,12 +3,12 @@
 import { auth } from "@/lib/auth";
 import { getBackupQueue } from "@/lib/queue";
 import { db } from "@repo/db";
-import { backupSchedulesTable, databasesTable } from "@repo/db/schema";
+import { backupSchedulesTable } from "@repo/db/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
-export default async function deleteDatabase(id: string) {
+export default async function deleteSchedule(id: string) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { data: null, error: { message: "Unauthorized" } };
   const userId = session.user.id;
@@ -18,27 +18,24 @@ export default async function deleteDatabase(id: string) {
   }
 
   try {
-    // Deleting the database cascades away its schedule rows, so grab their
-    // ids first to also unregister the BullMQ job schedulers.
-    const schedules = await db
-      .select({ id: backupSchedulesTable.id })
-      .from(backupSchedulesTable)
+    // backup_jobs.scheduleId is set null by the FK; backup files are kept.
+    const [deleted] = await db
+      .delete(backupSchedulesTable)
       .where(
         and(
-          eq(backupSchedulesTable.databaseId, id),
+          eq(backupSchedulesTable.id, id),
           eq(backupSchedulesTable.userId, userId),
         ),
-      );
+      )
+      .returning();
 
-    await db
-      .delete(databasesTable)
-      .where(and(eq(databasesTable.id, id), eq(databasesTable.userId, userId)));
-
-    for (const schedule of schedules) {
-      await getBackupQueue().removeJobScheduler(schedule.id);
+    if (!deleted) {
+      return { data: null, error: { message: "Schedule not found" } };
     }
 
-    revalidatePath("/dashboard");
+    await getBackupQueue().removeJobScheduler(deleted.id);
+
+    revalidatePath("/dashboard/schedules");
     return { data: null, error: null };
   } catch (error) {
     console.error(error);

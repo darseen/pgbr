@@ -4,22 +4,8 @@ import { restoreSchema, type RestoreJobPayload } from "@repo/types";
 import type { Job } from "bullmq";
 import { and, eq } from "drizzle-orm";
 import { spawn } from "node:child_process";
-import path from "node:path";
-import { getPgbrDataPath } from "../lib/paths.js";
+import { assertInsideDataDir } from "../lib/paths.js";
 import { buildPgRestoreArgs } from "../lib/pg-args.js";
-
-// Client-supplied custom paths must stay inside the pgbr data directory so
-// the restore job can't be pointed at arbitrary files on the worker.
-function assertInsideDataDir(candidate: string) {
-  const dataDir = path.resolve(getPgbrDataPath());
-  const resolved = path.resolve(candidate);
-
-  if (resolved !== dataDir && !resolved.startsWith(dataDir + path.sep)) {
-    throw new Error(
-      `Custom backup path must be inside the pgbr data directory (${dataDir})`,
-    );
-  }
-}
 
 export async function processRestore(job: Job<RestoreJobPayload>) {
   const { jobId, userId, databaseId, backupJobId, backupPath, flags: rawFlags } =

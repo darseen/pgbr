@@ -13,6 +13,7 @@ import { toast } from "sonner";
 const navLinks = [
   { name: "Dashboard", href: "/dashboard" },
   { name: "Backups", href: "/dashboard/backups" },
+  { name: "Schedules", href: "/dashboard/schedules" },
   { name: "Migrate", href: "/dashboard/migrate" },
   { name: "Settings", href: "/dashboard/settings" },
 ];

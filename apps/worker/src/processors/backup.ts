@@ -5,13 +5,20 @@ import type { Job } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
 import { format } from "date-fns";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { getBackupsPath } from "../lib/paths.js";
 import { buildPgDumpArgs, getDirectorySize } from "../lib/pg-args.js";
+import { pruneScheduleBackups } from "../lib/retention.js";
 
 export async function processBackup(job: Job<BackupJobPayload>) {
-  const { jobId, userId, databaseId, flags: rawFlags } = job.data;
+  const { jobId, userId, databaseId, scheduleId, flags: rawFlags } = job.data;
+
+  // User-triggered jobs carry a dashboard-generated UUID; scheduled jobs
+  // don't (BullMQ scheduler job ids look like "repeat:<id>:<ts>", unusable
+  // as a filename suffix), so generate the row id here instead.
+  const rowId = jobId ?? randomUUID();
 
   const flagResult = backupSchema.safeParse(rawFlags);
   if (!flagResult.success) {
@@ -40,7 +47,7 @@ export async function processBackup(job: Job<BackupJobPayload>) {
   // can never overwrite each other.
   const safeName = database.name.replace(/[^a-zA-Z0-9._-]/g, "_");
   const timestamp = format(new Date(), "yyyy-MM-dd_HH-mm-ss");
-  const fileName = `${safeName}_${timestamp}_${jobId.slice(0, 8)}.${extensionMap[flags.format]}`;
+  const fileName = `${safeName}_${timestamp}_${rowId.slice(0, 8)}.${extensionMap[flags.format]}`;
   const backupDir = getBackupsPath();
 
   await fs.mkdir(backupDir, { recursive: true });
@@ -49,9 +56,10 @@ export async function processBackup(job: Job<BackupJobPayload>) {
   const [backupJob] = await db
     .insert(backupJobsTable)
     .values({
-      id: jobId,
+      id: rowId,
       databaseId: database.id,
       userId,
+      scheduleId: scheduleId ?? null,
       databaseName: database.name,
       status: "running",
       backupPath,
@@ -107,7 +115,7 @@ export async function processBackup(job: Job<BackupJobPayload>) {
             completedAt: new Date().toISOString(),
             size,
           })
-          .where(eq(backupJobsTable.id, jobId))
+          .where(eq(backupJobsTable.id, rowId))
           .returning();
 
         if (code === 0) {
@@ -115,6 +123,13 @@ export async function processBackup(job: Job<BackupJobPayload>) {
             .update(databasesTable)
             .set({ backupCount: sql`${databasesTable.backupCount} + 1` })
             .where(eq(databasesTable.id, databaseId));
+
+          // Retention failures must not fail an otherwise successful backup.
+          try {
+            await pruneScheduleBackups(scheduleId);
+          } catch (retentionError) {
+            console.error("Failed to prune scheduled backups", retentionError);
+          }
         }
 
         resolve(updatedJob);
@@ -132,7 +147,7 @@ export async function processBackup(job: Job<BackupJobPayload>) {
             error: err.message,
             completedAt: new Date().toISOString(),
           })
-          .where(eq(backupJobsTable.id, jobId));
+          .where(eq(backupJobsTable.id, rowId));
       } finally {
         reject(err);
       }

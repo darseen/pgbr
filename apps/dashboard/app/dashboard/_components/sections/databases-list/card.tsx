@@ -14,6 +14,7 @@ import pingDatabase from "@/actions/database/ping";
 import { BackupJob, Database } from "@repo/db/schema";
 import {
   Activity,
+  CalendarClock,
   CalendarDays,
   History,
   Loader2,
@@ -21,6 +22,7 @@ import {
   Server,
   Trash2,
 } from "lucide-react";
+import Link from "next/link";
 import { Dispatch, SetStateAction, useState } from "react";
 import { toast } from "sonner";
 import BackupForm from "./backup-form";
@@ -157,6 +159,12 @@ export default function DatabaseCard({
       <CardFooter className="flex flex-wrap gap-2 py-4">
         <BackupForm database={database} />
         <RestoreForm database={database} backupJobs={backupJobs} />
+        <Button size="sm" variant="outline" asChild>
+          <Link href={`/dashboard/schedules?new=1&databaseId=${database.id}`}>
+            <CalendarClock className="mr-2 size-4" />
+            Schedule
+          </Link>
+        </Button>
       </CardFooter>
     </Card>
   );

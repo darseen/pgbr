@@ -7,6 +7,7 @@ import {
 import { createRedisConnection, QUEUE_NAMES } from "@repo/shared";
 import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
+import { reconcileSchedules } from "./lib/reconcile-schedules.js";
 import { processBackup } from "./processors/backup.js";
 import { processMigrate } from "./processors/migrate.js";
 import { processRestore } from "./processors/restore.js";
@@ -40,6 +41,12 @@ async function failInterruptedJobs() {
 }
 
 await failInterruptedJobs();
+
+try {
+  await reconcileSchedules();
+} catch (err) {
+  console.error("Failed to reconcile backup schedules:", err);
+}
 
 const backupWorker = new Worker(QUEUE_NAMES.backup, processBackup, {
   connection: createRedisConnection(),

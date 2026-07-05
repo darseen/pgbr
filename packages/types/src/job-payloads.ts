@@ -1,7 +1,10 @@
 export interface BackupJobPayload {
-  jobId: string;
+  /** Present for user-triggered runs (SSE correlation); absent for scheduled runs. */
+  jobId?: string;
   userId: string;
   databaseId: string;
+  /** Present when the job was produced by a backup schedule. */
+  scheduleId?: string;
   flags: unknown;
 }
 
