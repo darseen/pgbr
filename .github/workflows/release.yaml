@@ -1,4 +1,4 @@
-name: Dashboard CI
+name: Release
 
 on:
   push:
@@ -11,6 +11,14 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+    strategy:
+      matrix:
+        include:
+          - image: pgbr-dashboard
+            dockerfile: ./apps/dashboard/Dockerfile.prod
+          - image: pgbr-worker
+            dockerfile: ./apps/worker/Dockerfile.prod
 
     steps:
       - name: Checkout repository
@@ -33,9 +41,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/darseen/pgbr-dashboard
+          images: ghcr.io/darseen/${{ matrix.image }}
           tags: |
-            type=raw,value=latest
+            # only move "latest" for stable releases, not pre-release tags
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
             type=raw,value=${{ steps.package-version.outputs.version }}
 
       - name: Set up Docker Buildx
@@ -45,7 +54,9 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./apps/dashboard/Dockerfile.prod
+          file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
