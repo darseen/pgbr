@@ -1,32 +1,49 @@
 import authorizeRequest from "@/lib/authorize-request";
 import {
+  getBackupQueue,
   getBackupQueueEvents,
+  getMigrateQueue,
   getMigrateQueueEvents,
+  getRestoreQueue,
   getRestoreQueueEvents,
 } from "@/lib/queue";
+import type { Queue } from "bullmq";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-// Global job-event stream: emits a lightweight signal whenever any job in
-// any queue changes state, so open pages can refresh their server-rendered
+// Per-user job-event stream: emits a lightweight signal whenever one of the
+// caller's jobs changes state, so open pages can refresh their server-rendered
 // data. This is how background (scheduled) jobs become visible without a
 // manual reload. "progress" rather than "active" marks a job's start because
 // the worker inserts the DB row first and calls updateProgress right after —
 // by then a refresh has something new to render.
 export async function GET(request: Request) {
-  const { error: authError } = await authorizeRequest();
+  const { data, error: authError } = await authorizeRequest();
   if (authError) {
     return NextResponse.json(
       { error: { message: authError.message }, data: null },
       { status: 401 },
     );
   }
+  const userId = data.user.id;
+
+  // Queue events are instance-wide, so each one is matched back to its job to
+  // see who owns it. Without this every user is told when anyone's job runs —
+  // no data, but a timing signal that isn't theirs to see.
+  async function ownsJob(queue: Queue, jobId: string) {
+    try {
+      const job = await queue.getJob(jobId);
+      return job?.data?.userId === userId;
+    } catch {
+      return false;
+    }
+  }
 
   const queues = [
-    ["backup", getBackupQueueEvents()],
-    ["restore", getRestoreQueueEvents()],
-    ["migrate", getMigrateQueueEvents()],
+    ["backup", getBackupQueue(), getBackupQueueEvents()],
+    ["restore", getRestoreQueue(), getRestoreQueueEvents()],
+    ["migrate", getMigrateQueue(), getMigrateQueueEvents()],
   ] as const;
 
   const stream = new ReadableStream({
@@ -43,10 +60,14 @@ export async function GET(request: Request) {
         }
       };
 
-      const listeners = queues.map(([queue, queueEvents]) => {
-        const emit = (event: string) => () => {
-          send(`data: ${JSON.stringify({ queue, event })}\n\n`);
-        };
+      const listeners = queues.map(([queue, jobQueue, queueEvents]) => {
+        const emit =
+          (event: string) =>
+          async ({ jobId }: { jobId: string }) => {
+            if (closed) return;
+            if (!(await ownsJob(jobQueue, jobId))) return;
+            send(`data: ${JSON.stringify({ queue, event })}\n\n`);
+          };
         const handlers = {
           progress: emit("progress"),
           completed: emit("completed"),

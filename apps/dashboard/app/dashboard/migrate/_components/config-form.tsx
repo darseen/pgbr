@@ -25,8 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Database } from "@repo/db/schema";
-import { BackupFlags, RestoreFlags } from "@/types";
+import { BackupFlags, DatabaseOption, RestoreFlags } from "@/types";
 import {
   AlertCircle,
   ArrowDown,
@@ -39,7 +38,7 @@ import {
 import { Dispatch, SetStateAction, useState } from "react";
 
 interface Props {
-  databases: Database[];
+  databases: DatabaseOption[];
   backupFlags: BackupFlags;
   setBackupFlags: Dispatch<SetStateAction<BackupFlags>>;
   restoreFlags: RestoreFlags;

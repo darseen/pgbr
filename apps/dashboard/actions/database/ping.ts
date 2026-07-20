@@ -3,7 +3,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@repo/db";
 import { databasesTable } from "@repo/db/schema";
-import { decrypt } from "@repo/shared";
+import { decrypt, pgConnection } from "@repo/shared";
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { spawn } from "node:child_process";
@@ -27,19 +27,20 @@ export default async function pingDatabase(id: string) {
       return { data: null, error: { message: "Database not found" } };
     }
 
-    const isReady = await new Promise<boolean>((resolve) => {
-      const process = spawn("pg_isready", [
-        "-d",
-        decrypt(database.url),
-        "-t",
-        "5",
-      ]);
+    // Password via PGPASSWORD, not argv — the process table is readable by
+    // anything else in this container.
+    const target = pgConnection(decrypt(database.url));
 
-      process.on("close", (code) => {
+    const isReady = await new Promise<boolean>((resolve) => {
+      const child = spawn("pg_isready", ["-d", target.url, "-t", "5"], {
+        env: { ...process.env, ...target.env },
+      });
+
+      child.on("close", (code) => {
         resolve(code === 0);
       });
 
-      process.on("error", (err) => {
+      child.on("error", (err) => {
         console.error("Failed to start pg_isready process:", err);
         resolve(false);
       });

@@ -1,3 +1,19 @@
+// Replaces the password in a connection string with dots. This runs on the
+// server and its output is what reaches the browser — the plaintext URL is a
+// credential and never leaves the server. Called before returning any database
+// row to a client component.
+export function maskDatabaseUrl(urlString: string): string {
+  try {
+    const parsedUrl = new URL(urlString);
+    if (parsedUrl.password) {
+      parsedUrl.password = "••••••••";
+    }
+    return decodeURIComponent(parsedUrl.toString());
+  } catch {
+    return urlString.replace(/:([^:@/]+)@/, ":••••••••@");
+  }
+}
+
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return "0 B";
   const k = 1024;

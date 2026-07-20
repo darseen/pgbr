@@ -34,9 +34,12 @@ export default function AddDatabaseDialog({
 }: Props) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  // The url is never prefilled: `database.url` is masked by the time it reaches
+  // the browser, so echoing it back would save the mask. Empty means "keep the
+  // stored connection string", which is what the dialog tells the user.
   const [formData, setFormData] = useState<Pick<Database, "name" | "url">>({
     name: database?.name || "",
-    url: database?.url || "",
+    url: "",
   });
 
   const isEditing = !!database;
@@ -70,7 +73,7 @@ export default function AddDatabaseDialog({
 
       setFormData({
         name: database?.name || "",
-        url: database?.url || "",
+        url: "",
       });
     } catch {
       toast.error("An unexpected error occurred");
@@ -110,7 +113,11 @@ export default function AddDatabaseDialog({
             <Label htmlFor="url">Database String</Label>
             <Input
               id="url"
-              placeholder="postgresql://user:password@host:5432/database"
+              placeholder={
+                isEditing
+                  ? "Leave empty to keep the current connection string"
+                  : "postgresql://user:password@host:5432/database"
+              }
               value={formData.url}
               onChange={(e) =>
                 setFormData({ ...formData, url: e.target.value })

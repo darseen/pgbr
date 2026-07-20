@@ -14,6 +14,14 @@ type ErrorResponse = {
   error: { message: string };
 };
 
+// What the migrate flow needs to name a saved database. Deliberately excludes
+// `url`: the worker resolves the credential from the id, so the connection
+// string has no reason to reach the browser.
+export type DatabaseOption = {
+  id: string;
+  name: string;
+};
+
 export type MigrationStep = "configure" | "migrating" | "complete";
 
 export type MigrationState = {

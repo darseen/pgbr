@@ -1,18 +1,18 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { databaseSchema } from "@/lib/zod/database";
+import { updateDatabaseSchema } from "@/lib/zod/database";
 import { db } from "@repo/db";
 import { databasesTable } from "@repo/db/schema";
 import { encrypt } from "@repo/shared";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
 export default async function updateDatabase(input: {
   id: string;
   name: string;
-  url: string;
+  url?: string | undefined;
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { data: null, error: { message: "Unauthorized" } };
@@ -22,15 +22,37 @@ export default async function updateDatabase(input: {
     return { data: null, error: { message: "ID is required" } };
   }
 
-  const result = databaseSchema.safeParse(input);
+  const result = updateDatabaseSchema.safeParse(input);
   if (!result.success) {
     return { data: null, error: { message: result.error.issues[0].message } };
   }
 
+  const url = result.data.url?.trim();
+
   try {
+    const [nameTaken] = await db
+      .select({ id: databasesTable.id })
+      .from(databasesTable)
+      .where(
+        and(
+          eq(databasesTable.userId, userId),
+          eq(databasesTable.name, result.data.name),
+          ne(databasesTable.id, input.id),
+        ),
+      );
+
+    if (nameTaken) {
+      return { data: null, error: { message: "Database name already exists" } };
+    }
+
     const [database] = await db
       .update(databasesTable)
-      .set({ name: result.data.name, url: encrypt(result.data.url) })
+      .set({
+        name: result.data.name,
+        // Omitted means "keep the stored credential" — the client only ever
+        // held a masked URL, so there is nothing to write back.
+        ...(url ? { url: encrypt(url) } : {}),
+      })
       .where(and(eq(databasesTable.id, input.id), eq(databasesTable.userId, userId)))
       .returning();
 
@@ -40,10 +62,7 @@ export default async function updateDatabase(input: {
 
     revalidatePath("/dashboard");
 
-    return {
-      data: { database: { ...database, url: result.data.url } },
-      error: null,
-    };
+    return { data: null, error: null };
   } catch (error) {
     console.error(error);
     return { data: null, error: { message: "Internal server error" } };

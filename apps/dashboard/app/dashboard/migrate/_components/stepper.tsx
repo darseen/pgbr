@@ -1,10 +1,11 @@
 "use client";
 
 import { DEFAULT_BACKUP_FLAGS, DEFAULT_RESTORE_FLAGS } from "@/constants";
-import { Database, MigrationJobStatus } from "@repo/db/schema";
+import { MigrationJobStatus } from "@repo/db/schema";
 import {
   ApiResponse,
   BackupFlags,
+  DatabaseOption,
   MigrationState,
   RestoreFlags,
 } from "@/types";
@@ -17,7 +18,7 @@ import MigrationProgress from "./migration-progress";
 import StepsHeader from "./steps-header";
 
 interface Props {
-  databases: Database[];
+  databases: DatabaseOption[];
 }
 
 export default function Stepper({ databases }: Props) {
@@ -58,15 +59,11 @@ export default function Stepper({ databases }: Props) {
       error: null,
     });
 
-    const finalSourceUrl =
-      sourceId === "custom"
-        ? sourceUrl
-        : databases.find((db) => db.id === sourceId)?.url;
-
-    const finalTargetUrl =
-      targetId === "custom"
-        ? targetUrl
-        : databases.find((db) => db.id === targetId)?.url;
+    // Only a custom connection string travels with the request. For a saved
+    // database the worker looks the credential up from the id, under the
+    // session's user — sending a url here would be both redundant and a leak.
+    const finalSourceUrl = sourceId === "custom" ? sourceUrl : undefined;
+    const finalTargetUrl = targetId === "custom" ? targetUrl : undefined;
 
     const event = new SSE("/api/migrate", {
       method: "POST",

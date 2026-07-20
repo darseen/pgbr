@@ -131,7 +131,7 @@ export default function DatabaseCard({
 
         <CardDescription className="mt-3">
           <code className="bg-muted text-muted-foreground block w-full truncate rounded-md px-2 py-1 font-mono text-xs">
-            {maskDatabaseUrl(database.url)}
+            {database.url}
           </code>
         </CardDescription>
       </CardHeader>
@@ -168,16 +168,4 @@ export default function DatabaseCard({
       </CardFooter>
     </Card>
   );
-}
-
-function maskDatabaseUrl(urlString: string) {
-  try {
-    const parsedUrl = new URL(urlString);
-    if (parsedUrl.password) {
-      parsedUrl.password = "••••••••";
-    }
-    return decodeURIComponent(parsedUrl.toString());
-  } catch {
-    return urlString.replace(/:([^:@/]+)@/, ":••••••••@");
-  }
 }

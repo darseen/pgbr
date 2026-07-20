@@ -10,7 +10,8 @@ import {
   migrationJobsTable,
   restoreJobsTable,
 } from "@repo/db/schema";
-import { BACKUPS_PREFIX, CUSTOM_UPLOADS_PREFIX, getStore } from "@repo/storage";
+import { getStore } from "@repo/storage";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
@@ -19,27 +20,60 @@ export default async function nuke() {
     headers: await headers(),
   });
   if (!session) return { data: null, error: { message: "Unauthorized" } };
+  const userId = session.user.id;
 
   try {
+    // Everything below is scoped to the caller, matching clearRestores and
+    // clearMigrations. Nuke wipes *your* data, not the instance's.
+    const [ownedSchedules, ownedBackups, ownedRestores] = await Promise.all([
+      db
+        .select({ id: backupSchedulesTable.id })
+        .from(backupSchedulesTable)
+        .where(eq(backupSchedulesTable.userId, userId)),
+      db
+        .select({ storageKey: backupJobsTable.storageKey })
+        .from(backupJobsTable)
+        .where(eq(backupJobsTable.userId, userId)),
+      db
+        .select({ storageKey: restoreJobsTable.storageKey })
+        .from(restoreJobsTable)
+        .where(eq(restoreJobsTable.userId, userId)),
+    ]);
+
+    // Collected before the rows go away — they're the only record of which
+    // objects in the bucket are this user's.
+    const ownedKeys = [
+      ...new Set(
+        [...ownedBackups, ...ownedRestores]
+          .map((row) => row.storageKey)
+          .filter(Boolean),
+      ),
+    ];
+
     await db.transaction(async (tx) => {
-      await tx.delete(backupSchedulesTable);
-      await tx.delete(databasesTable);
-      await tx.delete(backupJobsTable);
-      await tx.delete(restoreJobsTable);
-      await tx.delete(migrationJobsTable);
+      await tx
+        .delete(backupSchedulesTable)
+        .where(eq(backupSchedulesTable.userId, userId));
+      await tx.delete(databasesTable).where(eq(databasesTable.userId, userId));
+      await tx.delete(backupJobsTable).where(eq(backupJobsTable.userId, userId));
+      await tx
+        .delete(restoreJobsTable)
+        .where(eq(restoreJobsTable.userId, userId));
+      await tx
+        .delete(migrationJobsTable)
+        .where(eq(migrationJobsTable.userId, userId));
     });
 
-    // Nuke wipes every database, so no job scheduler should survive.
+    // Only the schedulers derived from the schedules just deleted; another
+    // user's repeat jobs must keep running.
     const queue = getBackupQueue();
-    const schedulers = await queue.getJobSchedulers(0, -1);
-    for (const scheduler of schedulers) {
-      if (scheduler.key) await queue.removeJobScheduler(scheduler.key);
+    for (const schedule of ownedSchedules) {
+      await queue.removeJobScheduler(schedule.id);
     }
 
     // Storage settings are intentionally preserved; only artifacts are removed.
     const store = await getStore();
-    await store.deleteByPrefix(BACKUPS_PREFIX);
-    await store.deleteByPrefix(CUSTOM_UPLOADS_PREFIX);
+    await store.deleteObjects(ownedKeys);
 
     revalidatePath("/dashboard");
 

@@ -35,22 +35,17 @@ export default async function createDatabase(input: { name: string; url: string 
       };
     }
 
-    const [database] = await db
-      .insert(databasesTable)
-      .values({
-        id: randomUUID(),
-        name: result.data.name,
-        url: encrypt(result.data.url),
-        userId,
-      })
-      .returning();
+    await db.insert(databasesTable).values({
+      id: randomUUID(),
+      name: result.data.name,
+      url: encrypt(result.data.url),
+      userId,
+    });
 
     revalidatePath("/dashboard");
 
-    return {
-      data: { database: { ...database!, url: result.data.url } },
-      error: null,
-    };
+    // Deliberately no row echoed back: it would carry the plaintext url.
+    return { data: null, error: null };
   } catch (error) {
     console.error(error);
     return { data: null, error: { message: "Internal server error" } };

@@ -17,8 +17,13 @@ export default async function Page() {
   });
 
   if (!session) redirect("/");
+  // The stepper picks a saved database by id and the worker resolves the
+  // credential itself, so the url column is never selected here.
   const databases = await db
-    .select()
+    .select({
+      id: databasesTable.id,
+      name: databasesTable.name,
+    })
     .from(databasesTable)
     .where(eq(databasesTable.userId, session.user.id));
 

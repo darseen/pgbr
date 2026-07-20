@@ -6,6 +6,7 @@ import {
   restoreJobsTable,
 } from "@repo/db/schema";
 import { auth } from "@/lib/auth";
+import { maskDatabaseUrl } from "@/utils";
 import { decrypt } from "@repo/shared";
 import { desc, eq } from "drizzle-orm";
 import { Metadata } from "next";
@@ -55,7 +56,10 @@ export default async function Page() {
       <div className="grid items-start gap-8 lg:grid-cols-[1fr_400px]">
         <DatabasesList
           backupJobs={backupJobs}
-          databases={databases.map((db) => ({ ...db, url: decrypt(db.url) }))}
+          databases={databases.map((db) => ({
+            ...db,
+            url: maskDatabaseUrl(decrypt(db.url)),
+          }))}
         />
         <JobHistory
           restoreJobs={restoreJobs}

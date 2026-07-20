@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { db } from "@repo/db";
 import { databasesTable } from "@repo/db/schema";
+import { maskDatabaseUrl } from "@/utils";
 import { decrypt } from "@repo/shared";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -18,9 +19,11 @@ export default async function listDatabases() {
       .from(databasesTable)
       .where(eq(databasesTable.userId, userId));
 
+    // Masked, not decrypted: this crosses to the browser, and a connection
+    // string with its password is a credential the client has no use for.
     const databases = rawDatabases.map((dbRecord) => ({
       ...dbRecord,
-      url: decrypt(dbRecord.url),
+      url: maskDatabaseUrl(decrypt(dbRecord.url)),
     }));
 
     return { data: { databases }, error: null };
