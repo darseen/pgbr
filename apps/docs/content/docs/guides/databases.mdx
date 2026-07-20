@@ -1,0 +1,104 @@
+---
+title: Managing Databases
+description: Add, test, edit, and remove the PostgreSQL connections pgbr works with.
+---
+
+A **database** in pgbr is a saved, encrypted connection string with a label.
+Everything else — backups, restores, schedules — hangs off one.
+
+## Adding a database
+
+Use **Add Database** on the dashboard.
+
+| Field | Notes |
+| --- | --- |
+| **Name** | A label for the UI. Must be unique among *your* databases. |
+| **URL** | `postgresql://user:password@host:5432/dbname` |
+
+The URL is encrypted with `ENCRYPTION_KEY` before being stored.
+
+Names are scoped to you, so another account having a `production` doesn't stop you
+from having one. Reusing one of your own names is rejected with "Database name
+already exists".
+
+### Connection URLs from inside Docker
+
+The dashboard and worker resolve the host, so `localhost` means *the container*,
+not your machine. Use:
+
+| Target | Host to use |
+| --- | --- |
+| A Compose service | The service name — `pgbr_db`, `test_db1` |
+| The Docker host | `host.docker.internal` (Docker Desktop) |
+| An external database | Its real hostname |
+
+You can append standard libpq parameters, e.g. `?sslmode=require`.
+
+## Privileges
+
+pgbr needs whatever `pg_dump` needs to read what you're dumping, and whatever
+`pg_restore` needs to write it. A full dump generally needs read access to every
+object; restores commonly need to create objects, and `--clean` needs to drop
+them.
+
+Give pgbr its own role rather than reusing a superuser, and grant only what your
+dumps actually touch.
+
+## Testing a connection
+
+**Ping** runs `pg_isready` against the connection with a 5-second timeout, from
+the dashboard container.
+
+<Callout type="info">
+  `pg_isready` checks that the server is **accepting connections** — it verifies
+  reachability, not that your credentials are right or that the database exists.
+  A green ping and a failing backup is normal when credentials are wrong. The
+  first real check of your credentials is the first backup.
+</Callout>
+
+## Editing
+
+Editing lets you change the name and the URL. The name prefills; the connection
+string **does not**, because the browser only ever receives a masked version of it
+and saving that back would overwrite your credential with dots.
+
+Leave the connection field empty to keep the stored one. Fill it in only to
+replace it.
+
+Changing the URL does not affect existing backups. They keep their artifacts and
+history; they simply record the database's name at the time they ran.
+
+<Callout type="warn">
+  Editing a database repoints every schedule attached to it. The schedule keeps
+  running on its cron pattern, now against a different target — and nothing warns
+  you.
+</Callout>
+
+## Deleting
+
+Deleting a database:
+
+- **Deletes its schedules** (cascade), and unregisters their cron schedulers
+- **Keeps its backup jobs and artifacts** — their `databaseId` becomes null, and
+  they keep the database's name from when they ran
+- **Keeps restore and migration history**, likewise unlinked
+
+So deleting a database does not destroy its backups. You can still download them
+from the Backups page. What you lose is the ability to restore them with one
+click, since there's no target attached.
+
+To delete artifacts too, delete the backups from the Backups page first — or use
+[Wipe everything](/docs/guides/maintenance).
+
+## Backup counter
+
+Each database tracks a **lifetime** count of successful backups. It only ever
+increments — deleting backups or pruning through retention doesn't decrease it.
+It reflects how many backups have ever succeeded, not how many exist now.
+
+## Related
+
+<Cards>
+  <Card title="Run a backup" href="/docs/guides/backups" />
+  <Card title="Schedule backups" href="/docs/guides/schedules" />
+</Cards>

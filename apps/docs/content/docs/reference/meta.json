@@ -1,0 +1,11 @@
+{
+  "title": "Reference",
+  "icon": "Braces",
+  "pages": [
+    "environment-variables",
+    "backup-flags",
+    "restore-flags",
+    "api",
+    "database-schema"
+  ]
+}

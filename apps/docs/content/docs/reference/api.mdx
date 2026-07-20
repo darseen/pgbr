@@ -1,0 +1,196 @@
+---
+title: HTTP API
+description: The dashboard's HTTP endpoints and server actions.
+---
+
+pgbr's UI talks to its backend mostly through **Next.js server actions**, not a
+REST API. A handful of real HTTP endpoints exist for the things actions can't do:
+streaming, file transfer, and auth.
+
+<Callout type="warn">
+  This is an internal API for pgbr's own UI. It has no versioning policy and can
+  change in any release. There is no API-token authentication — every endpoint
+  authenticates with the **session cookie**, so scripting against it means
+  replaying a browser session.
+</Callout>
+
+## Endpoints
+
+### `GET /api/health`
+
+Liveness. No authentication.
+
+```json
+{ "status": "ok" }
+```
+
+Unconditional — it doesn't check Postgres, Redis, or storage. A dashboard with a
+dead Redis still returns `ok`.
+
+### `GET /api/events`
+
+Your job event stream (SSE). Requires a session.
+
+Emits a frame whenever one of **your** jobs changes state. Queue events are
+instance-wide, so each one is matched back to its job and dropped unless you own
+it — another account's activity produces nothing on your stream, not even a
+timing signal:
+
+```
+data: {"queue":"backup","event":"progress"}
+
+data: {"queue":"backup","event":"completed"}
+
+: ping
+```
+
+`queue` is `backup`, `restore`, or `migrate`; `event` is `progress`, `completed`,
+or `failed`. A `: ping` comment every 25 seconds keeps proxies from closing the
+connection.
+
+The payload is a **nudge, not data** — it carries no job details. The browser
+responds by re-rendering the current route through its normal server-side path, so
+there's exactly one place where data is loaded and authorized.
+
+<Callout type="info">
+  The stream is not filtered by user: every session sees an event when *any* user's
+  job changes state. Only the signal leaks, not the data — the refresh it triggers
+  is still scoped to your own records.
+</Callout>
+
+### `POST /api/migrate`
+
+Starts a migration and streams **that job's** progress until it finishes. Requires
+a session. This is the one operation whose progress is tied to the request that
+started it.
+
+```json title="Request"
+{
+  "sourceId": "uuid | \"custom\"",
+  "targetId": "uuid | \"custom\"",
+  "sourceUrl": "postgresql://...",
+  "targetUrl": "postgresql://...",
+  "backupFlags": {},
+  "restoreFlags": {}
+}
+```
+
+Provide either an ID or a URL per side. Responses stream as SSE:
+
+```
+data: {"error":null,"data":{"backupStatus":"running","restoreStatus":"running"}}
+
+data: {"error":null,"data":{"backupStatus":"completed","restoreStatus":"completed"}}
+```
+
+On failure:
+
+```json
+{ "error": { "message": "pg_dump: error: ..." }, "data": null }
+```
+
+The body is validated in the **worker**, not at the route — a malformed request is
+accepted, queued, and then fails as a job.
+
+### `POST /api/backup/upload`
+
+Uploads a custom restore source. Requires a session.
+
+Send the file as the **raw request body** — not `multipart/form-data`. It streams
+straight to object storage rather than buffering in memory, so large files are
+fine.
+
+| Header | Purpose |
+| --- | --- |
+| `x-filename` | The original filename. Only its extension is used, sanitized to alphanumerics. Defaults to `upload`. |
+
+```json title="Response"
+{ "data": { "key": "custom-uploads/<uuid>.backup" }, "error": null }
+```
+
+Pass that `key` as `customKey` when running the restore. The worker deletes the
+object once consumed.
+
+<Callout type="warn">
+  No size limit and no content validation. An authenticated user can fill the
+  bucket, and a file that isn't a dump surfaces as a `pg_restore` error rather than
+  an upload rejection.
+</Callout>
+
+### `GET /api/backup/download/[id]`
+
+Downloads a backup artifact. Requires a session, and the backup must be yours.
+
+The dashboard opens the object and **proxies the bytes** rather than issuing a
+presigned URL, so the object store never needs to be reachable from your browser.
+
+| Response | Meaning |
+| --- | --- |
+| `200` | `application/octet-stream`, with `Content-Disposition` and `Content-Length` |
+| `401` | No session |
+| `404` | Not found, not yours, or the object is missing from storage |
+
+<Callout type="info">
+  Download traffic flows through the dashboard container for the duration of the
+  transfer. For very large artifacts that's real bandwidth and a long-lived
+  connection.
+</Callout>
+
+### `/api/auth/[...all]`
+
+Better Auth's handler — sign-in, sign-up, sign-out, session. `GET` and `POST`.
+
+<Callout type="info">
+  The sign-up endpoint closes once an account exists: a `before` hook rejects
+  `POST /api/auth/sign-up/email` with **403 Forbidden**, so it can't be used to get
+  around the page's redirect. Sign-in and session endpoints are unaffected.
+</Callout>
+
+## Server actions
+
+Everything else is a server action. All check the session first and scope to your
+user; all return `{ data, error }` — never both.
+
+```ts
+type ApiResponse<T> =
+  | { data: T; error: null }
+  | { data: null; error: { message: string } };
+```
+
+| Action | Does |
+| --- | --- |
+| `checkUser` | Whether any account exists. The only action reachable without a session — it returns no user data. |
+| `listDatabases` | Your connections, with **masked** URLs — the plaintext never leaves the server. |
+| `createDatabase` | Adds a connection, encrypting the URL. Names are unique per user. |
+| `updateDatabase` | Updates the name, and the URL only if you supply one — blank keeps the stored credential. |
+| `deleteDatabase` | Deletes it, cascading schedules and unregistering their schedulers. |
+| `pingDatabase` | Runs `pg_isready` with a 5s timeout. |
+| `runBackup` | Validates flags, enqueues, returns a job ID. |
+| `listBackupJobs` | Your backup history. |
+| `deleteBackupJobs` | Deletes rows and completed artifacts. |
+| `runRestore` | Validates, enqueues from a tracked backup or a custom key. |
+| `listRestoreJobs` | Your restore history. |
+| `deleteRestoreJobs` | Deletes rows. |
+| `deleteMigrationJobs` | Deletes rows. |
+| `createSchedule` | Writes the row, registers the scheduler, rolls back if registration fails. |
+| `updateSchedule` | Updates everything but the database, re-upserting the scheduler. |
+| `toggleSchedule` | Enables or disables, registering or unregistering. |
+| `deleteSchedule` | Deletes the row and unregisters. Keeps its backups. |
+| `getStorageStatus` | Active config plus a reachability probe. Never returns the secret. |
+| `testStorageConnection` | Full round-trip: reach, write a probe, delete it. |
+| `updateStorageSettings` | Persists the config encrypted; blank secret keeps the current one. |
+| `clearRestores` | Deletes your restore history. |
+| `clearMigrations` | Deletes your migration history. |
+| `nuke` | Wipes **your** databases, schedules, history, and the artifacts your jobs produced. |
+
+Actions never throw across the boundary: an unexpected failure is logged
+server-side and returned as a generic `Internal server error`, so internals don't
+leak into the browser. The cost is that a constraint violation — like a duplicate
+database name — surfaces as that same generic message.
+
+## Related
+
+<Cards>
+  <Card title="Database schema" href="/docs/reference/database-schema" />
+  <Card title="Jobs and queues" href="/docs/concepts/jobs-and-queues" />
+</Cards>

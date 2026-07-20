@@ -1,0 +1,249 @@
+---
+title: Troubleshooting
+description: Diagnosing the failures pgbr users actually hit.
+icon: LifeBuoy
+---
+
+## Where to look first
+
+Job errors in pgbr are **the underlying tool's stderr, verbatim**. A failing
+backup shows you what `pg_dump` said. So:
+
+1. **Read the job's error** in Job History — it's usually the whole answer
+2. **Turn on Verbose** and re-run if it isn't
+3. **Check the worker logs** for anything that happened outside a job —
+   reconciliation, bucket provisioning, cleanup
+
+<Accordions>
+
+<Accordion title="Jobs stay queued and never run">
+
+Nothing is consuming the queue.
+
+- **Is the worker running?** `docker ps`, then check its logs.
+- **Do both services share `REDIS_URL`?** They must point at the *same* Redis. A
+  dashboard enqueuing into one and a worker consuming another looks exactly like
+  this — no errors, no progress.
+- **Do both share `DATABASE_URL`?** The worker writes job rows itself.
+
+The worker logs a schedule reconciliation line on boot. If you don't see it, it
+isn't reaching Postgres or Redis.
+
+</Accordion>
+
+<Accordion title="A backup fails immediately">
+
+Read the error — it's `pg_dump`'s.
+
+| Message | Cause |
+| --- | --- |
+| `server version mismatch` | `pg_dump` is older than the server. It refuses to dump a newer database. |
+| `connection refused` | Network. From a container, `localhost` is the container. |
+| `password authentication failed` | Credentials. Ping won't catch this — `pg_isready` doesn't authenticate. |
+| `permission denied for table ...` | The role can't read everything you're dumping. |
+| `No such file or directory` (spawn) | `pg_dump` isn't on `PATH` — only when running from source. |
+
+The version mismatch is the most common one. The images install a current
+`postgresql-client`; a database newer than the image needs a newer image.
+
+</Accordion>
+
+<Accordion title="Large backups fail at the very end (fixed after 2.3.0)">
+
+If the dump runs to completion, the artifact appears in your bucket, and *then*
+the job flips to `failed`, you're on **2.3.0 or earlier** and the artifact is over
+**2 GB**. `backup_jobs.size` was a 32-bit integer, so writing a larger size
+overflowed the column — the dump and upload both succeeded and only the
+bookkeeping failed.
+
+Upgrade. Migration `0004` widens `size` to `bigint` and the size is recorded
+normally at any artifact size.
+
+Jobs already stuck in this state stay marked `failed`, because the failure was
+recorded at the time. The artifacts are valid: download them directly from your
+store, or re-run the backup to get a job row pgbr will offer as a restore source.
+
+</Accordion>
+
+<Accordion title="A plain-format backup won't restore (fixed after 2.3.0)">
+
+On **2.3.0 or earlier**, dumping with **Plain** format and **Compress** on wrote
+gzip into an artifact stored as `.sql`. The restore path picked `psql` from that
+`.sql` extension and fed it gzip, which fails.
+
+Current versions store that combination as `.sql.gz` and decompress it before
+restoring. They also detect gzip by content rather than filename, so the
+mislabelled `.sql` artifacts an older version produced now restore correctly too —
+no re-dump needed.
+
+If you'd rather not rely on that, re-dump with Compress off, or use Custom format,
+which compresses better and is the default for good reason.
+
+</Accordion>
+
+<Accordion title="A restore fails on existing objects">
+
+`relation "x" already exists`, or similar, means the target isn't empty.
+
+- **Clean** (`--clean`) drops the dump's objects before recreating them
+- **If exists** (`--if-exists`) makes those drops conditional — enable it with
+  Clean, or Clean errors on objects that don't exist
+- Or restore into an empty database
+
+<Callout type="error">
+  Clean drops data. Confirm the target before enabling it.
+</Callout>
+
+</Accordion>
+
+<Accordion title="A restore reported success but data is missing">
+
+Almost always **Exit on error** turned off. Without it, `pg_restore` continues
+past errors and exits 0 — a partial restore reporting success.
+
+Re-run with Exit on error and Single transaction on (the defaults), and read what
+actually failed.
+
+Also check your filters: `-t` or `-n` restore only what you named.
+
+</Accordion>
+
+<Accordion title="Parallel restore is rejected">
+
+`Parallel restores (jobs > 1) cannot be run within a singleTransaction.`
+
+They're mutually exclusive in `pg_restore`. Either drop to 1 job, or turn off
+Single transaction and accept that a failure can leave the target partly restored.
+
+</Accordion>
+
+<Accordion title="Storage changes have no effect">
+
+**A saved settings row overrides `STORAGE_*` silently.** Once you've saved from
+Settings → Storage, environment changes do nothing.
+
+The settings page shows the active source — `environment` or `settings`. If it
+says `settings`, edit it there.
+
+</Accordion>
+
+<Accordion title="Storage connection fails">
+
+- **Path style** is the usual culprit. `true` for MinIO/SeaweedFS, `false` for
+  S3/R2/B2. Wrong values surface as DNS or 404 errors that never mention
+  addressing.
+- **Region** must match the bucket. R2 uses `auto`.
+- **Endpoint** needs its scheme — `https://s3...`, not `s3...`.
+- **Credentials** need write access. Use **Test connection**, which writes and
+  deletes a probe object; a read-only key passes a reachability check and fails at
+  backup time.
+
+</Accordion>
+
+<Accordion title="Downloads 404 but the job says completed">
+
+The row points at a key that no longer resolves.
+
+- **Did you repoint storage?** Changing buckets doesn't move artifacts. The rows
+  still reference the old bucket's keys. See
+  [migrating between stores](/docs/guides/object-storage).
+- **Was the object deleted out-of-band?** Lifecycle rules and manual cleanup will
+  do this. pgbr's rows won't know.
+
+</Accordion>
+
+<Accordion title="Scheduled backups aren't running">
+
+- **Is the schedule enabled?** A disabled schedule keeps its row and does nothing.
+- **Read the cron description** the form generates. `0 0 1 * 1` is the 1st *and*
+  every Monday — day-of-month and day-of-week are ORed.
+- **Check the timezone.** It fires in the schedule's zone, not the server's.
+- **Was Redis flushed?** Schedulers rebuild on the next worker boot — restart the
+  worker to force it.
+- **Look for failures.** A schedule that runs and fails looks like one that never
+  ran, unless you check Job History.
+
+</Accordion>
+
+<Accordion title="Everyone gets logged out on restart">
+
+`AUTH_SECRET` isn't set, so the dashboard generates a throwaway one each boot. Set
+it explicitly — it's also required for more than one dashboard replica to share
+sessions.
+
+</Accordion>
+
+<Accordion title="Invalid encrypted data format / decryption errors">
+
+`ENCRYPTION_KEY` doesn't match the one that encrypted the row.
+
+- **Do the dashboard and worker have the same key?** A mismatch shows up as
+  backups failing while the UI looks fine.
+- **Did it change?** There's no rotation flow. If the original is gone, the only
+  path forward is deleting and re-adding every connection and storage setting.
+
+<Callout type="error">
+  Back up `ENCRYPTION_KEY` somewhere other than the machine running pgbr.
+</Callout>
+
+</Accordion>
+
+<Accordion title="Ping succeeds but backups fail">
+
+Expected. Ping runs `pg_isready`, which checks the server is **accepting
+connections** — it doesn't authenticate, and it doesn't check the database exists.
+
+A green ping means the network works. The first real credential check is the first
+backup.
+
+</Accordion>
+
+<Accordion title="The migration page hangs">
+
+Migrations stream over a single held-open request to `/api/migrate`, unlike
+everything else. An aggressive proxy buffering or timing out that response makes
+the page look stuck while the job actually runs to completion.
+
+Check Job History for the real outcome, and make sure your proxy doesn't buffer
+`text/event-stream`.
+
+</Accordion>
+
+<Accordion title="Adding a database says 'Internal server error'">
+
+If the name is already taken, that's this. `databases.name` is unique **across the
+whole install**, not per user, and the constraint violation surfaces as a generic
+error rather than a useful message.
+
+Try a different name.
+
+</Accordion>
+
+<Accordion title="The worker restarts and jobs re-run">
+
+Working as designed. BullMQ's stalled-job detection re-delivers jobs whose worker
+died, and processors are idempotent so a re-delivery converges on the same row.
+
+A re-delivered backup re-runs `pg_dump` from scratch. Re-delivered restores replay
+into the target — with Single transaction on, the failed first attempt rolled
+back, so the replay starts clean.
+
+</Accordion>
+
+</Accordions>
+
+## Getting help
+
+If you're stuck, open an issue at
+[github.com/darseen/pgbr](https://github.com/darseen/pgbr/issues) with:
+
+- What you ran and what happened
+- The **job error text** from Job History
+- Worker logs around the failure
+- Your image versions and how you deployed
+- Whether storage is `environment` or `settings`, and which provider
+
+<Callout type="warn">
+  Redact connection strings, `ENCRYPTION_KEY`, `AUTH_SECRET`, and storage
+  credentials before pasting anything.
+</Callout>

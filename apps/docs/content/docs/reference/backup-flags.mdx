@@ -1,0 +1,222 @@
+---
+title: Backup Flags
+description: Every pg_dump flag pgbr exposes, the argument it produces, and the rules between them.
+---
+
+Backup flags map one-to-one onto `pg_dump` arguments. This page is the complete
+list; [Running backups](/docs/guides/backups) covers when to use them.
+
+The same flag set is used by one-off backups, schedules, and the source side of a
+migration.
+
+## Format
+
+<TypeTable
+  type={{
+    format: {
+      description: 'The pg_dump output format.',
+      type: '"custom" | "plain" | "directory" | "tar"',
+      default: '"custom"',
+      required: true,
+    },
+  }}
+/>
+
+| Value | Argument | Artifact | Restored with |
+| --- | --- | --- | --- |
+| `custom` | `-Fc` | `.backup` | `pg_restore` |
+| `plain` | `-Fp` | `.sql`, or `.sql.gz` with `compress` | `psql` (after decompressing) |
+| `directory` | `-Fd` | `.tar` (collapsed) | `pg_restore` |
+| `tar` | `-Ft` | `.tar` | `pg_restore` |
+
+## Output
+
+<TypeTable
+  type={{
+    compress: {
+      description: 'Adds -Z 9. Rejected with tar format.',
+      type: 'boolean',
+      default: 'true',
+      required: true,
+    },
+    verbose: {
+      description: 'Adds --verbose. Makes failure messages usable.',
+      type: 'boolean',
+      default: 'true',
+      required: true,
+    },
+    jobs: {
+      description: 'Adds -j N when > 1. Directory format only.',
+      type: 'number',
+      default: '1',
+    },
+  }}
+/>
+
+`compress` is all-or-nothing at level 9 — pgbr exposes a checkbox, not a level.
+With `plain` it changes the artifact: `-Fp -Z9` emits gzip, so the object is
+stored as `.sql.gz` and decompressed on restore.
+
+`jobs` opens N additional connections to your database. The UI caps it at 16 and
+disables the field unless the format is `directory`.
+
+## Content selection
+
+<TypeTable
+  type={{
+    dataOnly: {
+      description: 'Adds --data-only. Mutually exclusive with schemaOnly.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    schemaOnly: {
+      description: 'Adds --schema-only. Mutually exclusive with dataOnly.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    inserts: {
+      description: 'Adds --inserts. Portable, and far slower to restore.',
+      type: 'boolean',
+      default: 'false',
+    },
+  }}
+/>
+
+## Restore behaviour baked into the dump
+
+These affect the SQL `pg_dump` emits, so they're decided at dump time and can't be
+changed later.
+
+<TypeTable
+  type={{
+    clean: {
+      description: 'Adds --clean. Emits DROP before CREATE.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    ifExists: {
+      description: 'Adds --if-exists. Requires clean.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    create: {
+      description: 'Adds --create. Emits CREATE DATABASE.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    noOwner: {
+      description: 'Adds --no-owner. Skips ownership commands.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    noPrivileges: {
+      description: 'Adds --no-acl. Skips GRANT/REVOKE.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+  }}
+/>
+
+<Callout type="info">
+  `noOwner` and `noPrivileges` are what make a dump restorable into an environment
+  where your roles don't exist. Dumping production for a local machine usually
+  wants both.
+</Callout>
+
+## Filters
+
+All take comma-separated lists in the UI and are stored as arrays. Each entry
+becomes a repeated argument, so three excluded schemas produce three `-N` flags.
+
+<TypeTable
+  type={{
+    includeSchemas: {
+      description: 'Adds -n per entry. Dump only these schemas.',
+      type: 'string[]',
+      default: '[]',
+    },
+    excludeSchemas: {
+      description: 'Adds -N per entry.',
+      type: 'string[]',
+      default: '[]',
+    },
+    includeTables: {
+      description: 'Adds -t per entry. Dump only these tables.',
+      type: 'string[]',
+      default: '[]',
+    },
+    excludeTables: {
+      description: 'Adds -T per entry.',
+      type: 'string[]',
+      default: '[]',
+    },
+    excludeTableData: {
+      description: 'Adds --exclude-table-data per entry. Structure, no rows.',
+      type: 'string[]',
+      default: '[]',
+    },
+  }}
+/>
+
+Entries accept `pg_dump`'s pattern syntax, so `audit_*` works.
+
+<Callout type="warn">
+  Filters are how you get an unrestorable backup. `-t orders` dumps the table
+  without the types, sequences, or functions it depends on. Filtered dumps are for
+  moving data between databases that already share a schema — not for disaster
+  recovery.
+</Callout>
+
+## Validation rules
+
+Enforced by a shared Zod schema in both the dashboard and the worker — the worker
+re-validates rather than trusting the queue payload.
+
+| Rule | Message |
+| --- | --- |
+| `jobs > 1` requires `format: "directory"` | Parallel backups (jobs > 1) are only supported with the 'directory' format. |
+| `dataOnly` and `schemaOnly` are exclusive | Cannot specify both dataOnly and schemaOnly. |
+| `format: "tar"` forbids `compress` | The 'tar' format does not support compression. |
+| `ifExists` requires `clean` | The ifExists flag is only valid when the clean flag is also true. |
+
+The form prevents most of these before you can submit — selecting Tar clears
+Compress, selecting a non-directory format resets Jobs to 1, and checking Data
+only unchecks Schema only.
+
+## Argument order
+
+Arguments are assembled in a fixed order: format, compression, boolean flags,
+parallelism, filters, output path, and finally the connection URL as the last
+positional argument.
+
+```bash
+pg_dump -Fc -Z 9 --verbose -N audit -f /tmp/pgbr-backup-xyz/artifact "postgresql://..."
+```
+
+## Migration overrides
+
+The [migration](/docs/guides/migrations) path overrides two flags regardless of
+what you selected, because the dump goes into a pipe rather than a file:
+
+- `format` is forced to `custom`
+- `jobs` is forced to `1`
+
+## Stored on the job
+
+Every backup row stores the exact flags it ran with, as JSON. That's what tells
+you what a given artifact actually contains — and it's what the restore path reads
+to decide whether an artifact needs expanding.
+
+## Related
+
+<Cards>
+  <Card title="Running backups" href="/docs/guides/backups" />
+  <Card title="Restore flags" href="/docs/reference/restore-flags" />
+</Cards>

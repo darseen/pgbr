@@ -1,0 +1,119 @@
+---
+title: Local Development
+description: Run the pgbr monorepo from source, and find your way around the codebase.
+---
+
+pgbr is a pnpm + Turborepo monorepo. Node 24+ and pnpm are required (see
+`.nvmrc`).
+
+## Run the stack
+
+The fastest path is Docker Compose, which builds both apps from source and wires
+up Postgres, Redis, SeaweedFS, and two throwaway test databases to practise
+against:
+
+```bash
+docker compose up --watch
+```
+
+`--watch` syncs your local changes into the containers and rebuilds when
+`package.json` or the lockfile changes. The dashboard is on
+`http://localhost:3000`.
+
+The Compose file ships working example secrets, so it runs with no setup. Those
+values are **public and for local use only**.
+
+## Run without Docker
+
+```bash
+pnpm install
+pnpm dev          # turbo run dev across all apps
+```
+
+You still need Postgres, Redis, and an S3-compatible store reachable from your
+machine, and `DATABASE_URL`, `REDIS_URL`, `ENCRYPTION_KEY`, and `AUTH_SECRET` set.
+Copy `apps/dashboard/.env.example` to `.env` as a starting point.
+
+The worker also needs `pg_dump`, `pg_restore`, `psql`, and `pg_isready` on
+`PATH`. The Docker images install `postgresql-client` for this; locally, install
+the PostgreSQL client tools yourself.
+
+<Callout type="warn">
+  Match your client tools to your **server** version. `pg_dump` refuses to dump a
+  database newer than itself, and this is the most common "works in Docker, fails
+  locally" failure.
+</Callout>
+
+## Repository layout
+
+<Files>
+  <Folder name="apps" defaultOpen>
+    <Folder name="dashboard">
+      <File name="actions/ — server actions (backup, restore, schedule, settings)" />
+      <File name="app/ — routes, API handlers, UI" />
+      <File name="lib/ — auth, queue clients, zod schemas" />
+    </Folder>
+    <Folder name="worker">
+      <File name="src/processors/ — backup, restore, migrate" />
+      <File name="src/lib/ — pg-args, archive, retention, paths" />
+    </Folder>
+    <Folder name="docs">
+      <File name="content/docs/ — this documentation" />
+    </Folder>
+  </Folder>
+  <Folder name="packages" defaultOpen>
+    <Folder name="db">
+      <File name="src/schema/ — drizzle tables" />
+      <File name="drizzle/ — SQL migrations" />
+    </Folder>
+    <File name="shared/ — encryption, redis, queue names, scheduler" />
+    <File name="storage/ — S3-compatible object store" />
+    <File name="types/ — flags, zod schemas, job payloads" />
+  </Folder>
+</Files>
+
+The split that matters: **`packages/types`** owns the flag schemas, so the
+dashboard and worker validate identically; **`packages/shared`** owns
+`buildScheduleTemplate`, so the dashboard's schedule actions and the worker's
+boot reconciliation can never disagree about what a schedule means.
+
+## Common tasks
+
+```bash
+pnpm build          # turbo run build
+pnpm lint           # turbo run lint
+pnpm check-types    # turbo run check-types
+pnpm --filter docs dev   # docs site only, on :3001
+```
+
+CI runs lint, type-check, and build on every push and pull request.
+
+## Database migrations
+
+Schema lives in `packages/db/src/schema/`, migrations in `packages/db/drizzle/`.
+After changing a schema file:
+
+```bash
+pnpm --filter @repo/db exec drizzle-kit generate
+```
+
+`generate` needs `DATABASE_URL` set but never connects to the database.
+Migrations are applied automatically by the dashboard's entrypoint on boot; to
+run them by hand:
+
+```bash
+pnpm --filter @repo/db exec tsx src/migrate.ts
+```
+
+<Callout type="info">
+  `drizzle-kit generate` prompts interactively when an added and a dropped column
+  collide on one table, which fails in a non-TTY shell. To replace a column, split
+  it into two runs: first add the new column while keeping the old one, then drop
+  the old one. The repository's `0002`/`0003` migrations are exactly this pattern.
+</Callout>
+
+## Releasing
+
+Pushing a git tag triggers the release workflow, which builds and pushes both
+images to GHCR. Tags come from `package.json`'s `version`; `latest` only moves
+for tags without a `-` in them, so pre-releases don't become the default.

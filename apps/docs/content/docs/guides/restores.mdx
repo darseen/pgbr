@@ -1,0 +1,150 @@
+---
+title: Restoring Backups
+description: Restore from a tracked backup or an uploaded dump, safely.
+---
+
+A restore reads an artifact and replays it into a target database. Click
+**Restore** on a database card — the card you click is the **target**, the database
+that gets written to.
+
+<Callout type="error">
+  A restore writes to a real database. Restore into a scratch target first and
+  confirm the result. "We have backups" and "we can restore" are different claims,
+  and only one of them matters during an incident.
+</Callout>
+
+## Choosing a source
+
+### A tracked backup
+
+Pick from backups pgbr made. It knows the format each one was dumped in, so it
+handles expansion and tool selection for you. This is the normal path.
+
+### A custom upload
+
+You can also upload a dump pgbr has never seen — from another tool, another
+server, or an artifact you downloaded earlier.
+
+The file streams straight to `custom-uploads/` rather than buffering in memory, so
+large files are fine. The worker verifies the object exists, restores from it, and
+**deletes it afterwards** — a custom upload is a throwaway, not a stored backup.
+
+<Callout type="warn">
+  For a custom upload, pgbr has no recorded format flag, so it falls back to the
+  **format you select in the form** and the file's extension. Get the format wrong
+  and the restore fails in `pg_restore` rather than being caught up front.
+</Callout>
+
+## How the tool is chosen
+
+pgbr picks between `pg_restore` and `psql` from the artifact:
+
+- **Gzip artifacts** (`.sql.gz`, or anything whose first bytes are gzip) are
+  decompressed first, then dispatched on what's underneath
+- **`.sql`** → `psql -d <url> -f <file>` — plain SQL is a script, not an archive
+- **Everything else** → `pg_restore`
+- **Directory-format** artifacts are expanded from their tarball first, then
+  restored with `pg_restore`
+
+Gzip is detected by reading the file's magic number rather than trusting its name,
+so a compressed dump restores whatever it's called. Nothing else collides: custom
+dumps begin with `PGDMP` and tarballs with a tar header.
+
+For `psql` restores only two flags carry over — **Single transaction** becomes
+`-1`, and **Exit on error** becomes `-v ON_ERROR_STOP=1`. Every other restore flag
+is a `pg_restore` concept and is silently ignored, because `psql` is replaying a
+script that already had those decisions baked in at dump time.
+
+## The safety flags
+
+Two restore flags are **on by default**, and you should think before turning
+either off:
+
+### Single transaction (`--single-transaction`)
+
+The restore runs as one transaction. It either fully succeeds or leaves the target
+exactly as it was. This is what makes a failed restore a non-event rather than a
+half-migrated database.
+
+Turn it off when: the restore is too large to hold in one transaction, or you're
+running a parallel restore (they're mutually exclusive — pgbr rejects the
+combination).
+
+### Exit on error (`--exit-on-error`)
+
+Stop at the first error. Without it, `pg_restore` continues past errors and exits
+0, and you get a **partially restored database that reports success**. That is a
+worse outcome than a loud failure.
+
+<Callout type="warn">
+  Turning both off gives you `pg_restore`'s actual defaults: continue past errors,
+  commit what worked, report success. pgbr's defaults are deliberately stricter.
+</Callout>
+
+## Restoring into a populated database
+
+If the target already contains the dump's objects, the restore fails on conflicts.
+Options:
+
+| Option | Flag | Effect |
+| --- | --- | --- |
+| **Clean** | `--clean` | Drop objects before recreating |
+| **If exists** | `--if-exists` | Make those drops conditional — needs Clean |
+| **Create** | `-C` | Create the database first |
+
+<Callout type="error">
+  **Clean drops your data.** It issues `DROP` against objects in the dump before
+  recreating them. On the wrong target, that is the destructive operation you were
+  trying to protect against. Confirm the target before enabling it.
+</Callout>
+
+Clean without If exists errors on objects that don't exist — which, with Exit on
+error on, fails the restore. Enabling both together is usually what you want.
+pgbr rejects If exists without Clean.
+
+## Other flags
+
+| Option | Flag | Notes |
+| --- | --- | --- |
+| Data only | `-a` | Existing schema, replace data |
+| Schema only | `-s` | Structure without contents |
+| No owner | `-O` | Don't set ownership — roles needn't exist |
+| No privileges | `-x` | Skip GRANT/REVOKE |
+| Disable triggers | `--disable-triggers` | Data-only restores; needs elevated rights |
+| Parallel jobs | `-j` | Concurrent restore workers |
+| Verbose | | Better error messages |
+
+Filters: include/exclude schemas (`-n` / `-N`), include tables (`-t`). Selective
+restore is why custom format is the right default — you can pull one table out of
+a full dump without restoring the rest.
+
+**Disable triggers** exists because a data-only restore fires foreign-key triggers
+per row, which both slows things down and can fail on rows inserted before their
+referents. It requires superuser or equivalent.
+
+## Parallel restores
+
+`-j` restores concurrently. It conflicts with Single transaction, and pgbr rejects
+the combination rather than letting you find out from `pg_restore`.
+
+That's a real tradeoff: parallelism costs you all-or-nothing safety. On a big
+restore into a scratch target, speed usually wins. Into anything you care about,
+it usually doesn't.
+
+Parallel restore works from custom and directory formats.
+
+## Watching it run
+
+Restores appear in **Job History** and update live. Errors are `pg_restore`'s or
+`psql`'s own stderr — turn on **Verbose** if a failure isn't self-explanatory.
+
+The row records the artifact key and flags used, so you can tell exactly what was
+replayed and how.
+
+## Related
+
+<Cards>
+  <Card title="Restore flag reference" href="/docs/reference/restore-flags" />
+  <Card title="Running backups" href="/docs/guides/backups" />
+  <Card title="Migrations" href="/docs/guides/migrations" />
+</Cards>

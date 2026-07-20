@@ -1,0 +1,221 @@
+---
+title: Configuring Object Storage
+description: Move from the bundled store onto S3, R2, Backblaze, or any S3-compatible provider.
+---
+
+pgbr stores every artifact in an S3-compatible object store. Out of the box that's
+a bundled SeaweedFS container, which exists so a fresh install works with zero
+setup.
+
+<Callout type="error">
+  The bundled store is a **convenience, not a durability strategy**. It's a single
+  container on a single volume with no replication and no versioning. Before you
+  depend on these backups, point pgbr at real object storage.
+</Callout>
+
+## Two ways to configure
+
+### Environment variables
+
+Set `STORAGE_*` on **both** the dashboard and the worker. This is the better
+option for a real deployment — the config is versioned with the rest of your
+infrastructure and can't be changed from a web form.
+
+```bash
+STORAGE_ENDPOINT=https://s3.us-east-1.amazonaws.com
+STORAGE_REGION=us-east-1
+STORAGE_BUCKET=my-pgbr-backups
+STORAGE_ACCESS_KEY_ID=AKIA...
+STORAGE_SECRET_ACCESS_KEY=...
+STORAGE_FORCE_PATH_STYLE=false
+```
+
+### The settings page
+
+**Settings → Storage** persists a connection in the database, encrypted with
+`ENCRYPTION_KEY`. It's convenient — no restart, and the worker picks it up on the
+next job because it resolves storage per job rather than at boot.
+
+<Callout type="warn">
+  **A saved settings row overrides the environment variables silently.** Once
+  you've saved from the settings page, changing `STORAGE_*` does nothing. The
+  settings page shows which source is active — check there first when a storage
+  change appears to have no effect.
+</Callout>
+
+The settings page probes the active connection on load. If it's reachable, it
+shows the config read-only and tells you where it came from. If it isn't, it shows
+the form.
+
+The secret is never sent back to the browser — leave the field blank to keep the
+stored one while changing another field.
+
+## Provider settings
+
+<Tabs items={['AWS S3', 'Cloudflare R2', 'Backblaze B2', 'MinIO', 'Bundled SeaweedFS']}>
+
+<Tab value="AWS S3">
+
+```bash
+STORAGE_ENDPOINT=https://s3.us-east-1.amazonaws.com
+STORAGE_REGION=us-east-1
+STORAGE_BUCKET=my-pgbr-backups
+STORAGE_ACCESS_KEY_ID=AKIA...
+STORAGE_SECRET_ACCESS_KEY=...
+STORAGE_FORCE_PATH_STYLE=false
+```
+
+The region must match the bucket's. Use an IAM user scoped to this bucket, not
+root credentials.
+
+</Tab>
+
+<Tab value="Cloudflare R2">
+
+```bash
+STORAGE_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+STORAGE_REGION=auto
+STORAGE_BUCKET=pgbr-backups
+STORAGE_ACCESS_KEY_ID=...
+STORAGE_SECRET_ACCESS_KEY=...
+STORAGE_FORCE_PATH_STYLE=false
+```
+
+R2 uses `auto` as its region and has no egress fees, which makes it a good fit for
+backups you hope never to download but must be able to.
+
+</Tab>
+
+<Tab value="Backblaze B2">
+
+```bash
+STORAGE_ENDPOINT=https://s3.us-west-004.backblazeb2.com
+STORAGE_REGION=us-west-004
+STORAGE_BUCKET=pgbr-backups
+STORAGE_ACCESS_KEY_ID=<keyID>
+STORAGE_SECRET_ACCESS_KEY=<applicationKey>
+STORAGE_FORCE_PATH_STYLE=false
+```
+
+The endpoint and region must match your bucket's — check them in the B2 console.
+
+</Tab>
+
+<Tab value="MinIO">
+
+```bash
+STORAGE_ENDPOINT=http://minio:9000
+STORAGE_REGION=us-east-1
+STORAGE_BUCKET=pgbr
+STORAGE_ACCESS_KEY_ID=minioadmin
+STORAGE_SECRET_ACCESS_KEY=minioadmin
+STORAGE_FORCE_PATH_STYLE=true
+```
+
+Self-hosted stores generally need path-style addressing.
+
+</Tab>
+
+<Tab value="Bundled SeaweedFS">
+
+```bash
+STORAGE_ENDPOINT=http://seaweedfs:8333
+STORAGE_REGION=us-east-1
+STORAGE_BUCKET=pgbr
+STORAGE_ACCESS_KEY_ID=pgbr
+STORAGE_SECRET_ACCESS_KEY=pgbrsecret
+STORAGE_FORCE_PATH_STYLE=true
+```
+
+These are the defaults — pgbr uses them when nothing else is configured. The
+credentials are public knowledge; the store is only safe because it isn't exposed
+outside the Docker network.
+
+</Tab>
+
+</Tabs>
+
+### Path-style addressing
+
+`STORAGE_FORCE_PATH_STYLE` picks the URL shape:
+
+- `true` → `https://endpoint/bucket/key` — self-hosted stores (MinIO, SeaweedFS)
+- `false` → `https://bucket.endpoint/key` — hosted providers (S3, R2, B2)
+
+It defaults to `true`, matching the bundled store. **Getting this wrong is the most
+common storage misconfiguration**, and it usually surfaces as a DNS or 404 error
+rather than anything mentioning addressing style.
+
+## Testing
+
+**Test connection** does a real round-trip: reach the bucket (creating it if
+absent), write a probe object, delete it. It exercises write access, because a
+store you can read but not write to fails at the worst possible moment.
+
+Test before saving. A failed test is a config error; a failed backup at 3am is an
+incident.
+
+## Permissions
+
+pgbr's credentials need:
+
+| Operation | Used for |
+| --- | --- |
+| `PutObject` | Uploading backups and custom sources |
+| `GetObject` | Restores and downloads |
+| `DeleteObject` / `DeleteObjects` | Deletes, retention, wipe |
+| `ListBucket` | Prefix deletion |
+| `HeadObject` | Validating a source before restore |
+| `HeadBucket` | Reachability checks |
+| `CreateBucket` | Auto-provisioning — optional |
+
+`CreateBucket` is optional: pgbr tries, and treats "already exists" as success. If
+your credentials can't create buckets, create it yourself first.
+
+## Migrating between stores
+
+There's no built-in transfer. Changing the config repoints pgbr at the new bucket
+— **existing artifacts do not move**, and their rows keep pointing at keys that no
+longer resolve. Those backups become undownloadable and unrestorable while their
+rows still look healthy.
+
+To move:
+
+<Steps>
+<Step>
+### Copy the objects
+
+Use `aws s3 sync`, `rclone`, or your provider's tooling to copy `backups/` and
+`custom-uploads/` to the new bucket. Keep the keys identical — the rows reference
+them by exact key.
+</Step>
+<Step>
+### Repoint pgbr
+
+Update the settings page or the `STORAGE_*` variables.
+</Step>
+<Step>
+### Verify
+
+Download an old backup and run a restore into a scratch target. A download proves
+the key resolves; only a restore proves the bytes are intact.
+</Step>
+</Steps>
+
+## Recommendations
+
+1. **Enable server-side encryption** — pgbr writes dumps unencrypted
+2. **Enable versioning** — it's your defence against a bad retention setting or an
+   accidental wipe
+3. **Scope credentials to the bucket** — pgbr needs nothing else
+4. **Consider lifecycle rules** for cold storage, but keep them from fighting
+   pgbr's retention
+5. **Use a different provider or region than the database** — a backup sharing a
+   failure domain with its source isn't much of a backup
+
+## Related
+
+<Cards>
+  <Card title="Storage concepts" href="/docs/concepts/storage" />
+  <Card title="Environment variables" href="/docs/reference/environment-variables" />
+</Cards>

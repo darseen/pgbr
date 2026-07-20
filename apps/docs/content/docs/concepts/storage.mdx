@@ -1,0 +1,158 @@
+---
+title: Storage
+description: Where artifacts live, how keys are built, and how the config is resolved.
+---
+
+Every backup artifact lives in an S3-compatible object store. The dashboard and
+worker have no durable local storage — they stream to and from the store and use
+scratch space only while a job runs.
+
+That single decision is what makes the worker horizontally scalable: any worker
+can restore any backup, because no worker owns any file.
+
+## Key layout
+
+```
+backups/<job-id>.<ext>              # tracked backups
+custom-uploads/<uuid>.<ext>         # user-uploaded restore sources
+```
+
+The prefixes exist so the "wipe everything" flow can bulk-delete by prefix rather
+than enumerate rows.
+
+### Artifact extensions
+
+The extension follows the dump format:
+
+| Format | Extension | Why |
+| --- | --- | --- |
+| `custom` | `.backup` | `pg_dump -Fc` output |
+| `plain` | `.sql` | Plain SQL script |
+| `plain` + compress | `.sql.gz` | `pg_dump -Fp -Z9` emits gzip, not SQL |
+| `directory` | `.tar` | The directory, collapsed into a tarball |
+| `tar` | `.tar` | `pg_dump -Ft` output, already a single file |
+
+`plain` is the only format where compression changes the extension. `custom` and
+`directory` compress *inside* their own container and `pg_restore` reads them
+unchanged; `tar` refuses compression outright. The extension has to be honest here
+because the restore path dispatches on it.
+
+## One object per backup
+
+**Every backup is exactly one object**, regardless of format. This is the
+invariant the storage layer is built around: it makes download a straight stream,
+delete a single call, and size a single number.
+
+Directory-format dumps are the exception that proves it. `pg_dump -Fd` writes a
+*directory* of files, so the worker tars it before upload and expands it back into
+scratch before a restore.
+
+<Callout type="warn">
+  Native `tar` format is **not** collapsed — `pg_dump -Ft` already produces one
+  file that `pg_restore` reads directly. Only `directory` format is tarred. The two
+  share the `.tar` extension but are not the same thing, and pgbr decides which is
+  which from the **recorded format flag**, not the extension.
+</Callout>
+
+## Configuration resolution
+
+The active storage connection is resolved at call time, in this order:
+
+<Steps>
+<Step>
+### A saved settings row
+
+If the singleton `storage_settings` row exists (id `default`), it wins. Its secret
+access key is decrypted with `ENCRYPTION_KEY`.
+</Step>
+<Step>
+### Environment variables
+
+Otherwise, the `STORAGE_*` variables.
+</Step>
+<Step>
+### Bundled defaults
+
+Anything unset falls back to the bundled SeaweedFS: `http://seaweedfs:8333`,
+region `us-east-1`, bucket `pgbr`, credentials `pgbr` / `pgbrsecret`, path-style
+addressing on.
+</Step>
+</Steps>
+
+The worker resolves this **per job**, not at boot, so a storage change from the
+settings page takes effect on the next job without restarting anything.
+
+<Callout type="error">
+  A saved settings row overrides the environment silently. If you change
+  `STORAGE_*` and nothing happens, a settings row is shadowing it — the settings
+  page shows which source is active.
+</Callout>
+
+## Bucket provisioning
+
+pgbr creates the bucket if it's missing — on worker boot, and after saving
+storage settings. Both are best-effort: an external store whose bucket already
+exists, with credentials that can't create buckets, is a normal and supported
+setup. `BucketAlreadyOwnedByYou` and `BucketAlreadyExists` are treated as success.
+
+## Connection checks
+
+Two different probes, for two different jobs:
+
+| Probe | Used by | Does |
+| --- | --- | --- |
+| **Verify** | The settings page's automatic check | Reaches the bucket, creating it if absent. No write. Fails fast, no retries. |
+| **Test** | The "Test connection" button | Reaches the bucket, then writes and deletes a probe object. |
+
+Verify has to be fast because it runs on page load — a dead store would otherwise
+hang the page. Test exercises write access, because read access proving nothing
+is exactly how you discover a broken bucket policy at restore time.
+
+## Uploads and downloads
+
+- **Uploads** use the S3 multipart uploader, streaming from scratch (or straight
+  from an incoming HTTP body for custom uploads). Bytes are counted as they pass
+  through, so the recorded size comes from the upload itself.
+- **Downloads are brokered.** The dashboard opens the object and proxies bytes to
+  the browser rather than issuing a presigned URL, so the object store never needs
+  to be reachable from your browser and access stays behind pgbr's session check.
+
+<Callout type="info">
+  Brokered downloads mean download traffic flows through the dashboard container.
+  For very large artifacts, that's dashboard bandwidth and an open connection for
+  the duration of the transfer.
+</Callout>
+
+## Scratch space
+
+Jobs stage bytes in a temp directory (`mkdtemp` in the system tmpdir) because
+`pg_dump` and `pg_restore` only work on local files. It is removed in a `finally`
+— failures to clean up are logged, never surfaced as job failures.
+
+<Callout type="warn">
+  Scratch is real disk. A worker running `WORKER_CONCURRENCY` jobs needs room for
+  that many artifacts at once, and a restore of a directory-format backup holds
+  *both* the tarball and its expansion. Size the worker's disk accordingly — it's
+  ephemeral, but it isn't free.
+</Callout>
+
+## Deletion
+
+| Action | Rows | Objects |
+| --- | --- | --- |
+| Delete a backup | Deleted | Deleted (completed backups only) |
+| Retention prune | Deleted | Deleted |
+| Consume a custom upload | — | Deleted after the restore |
+| Delete a schedule | Schedule only | Kept |
+| **Wipe everything** | All databases, schedules, and job history | Everything under both prefixes |
+
+Object deletion is best-effort and logged on failure — a storage hiccup doesn't
+block the metadata delete. The tradeoff is that a failed delete leaves an orphaned
+object with no row pointing at it.
+
+## Related
+
+<Cards>
+  <Card title="Configuring object storage" href="/docs/guides/object-storage" />
+  <Card title="Architecture" href="/docs/concepts/architecture" />
+</Cards>

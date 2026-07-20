@@ -1,0 +1,148 @@
+---
+title: Maintenance
+description: Clearing history, wiping data, health checks, and upgrades.
+---
+
+The **Settings** page holds the destructive operations, plus storage config.
+Everything here is worth reading before clicking.
+
+## Clearing history
+
+Two narrow, safe operations:
+
+| Action | Deletes | Keeps |
+| --- | --- | --- |
+| **Clear restore history** | Your restore job rows | Everything else |
+| **Clear migration history** | Your migration job rows | Everything else |
+
+Both are scoped to **your** user and touch no artifacts — restores and migrations
+don't produce any. They're bookkeeping: clearing clutter, not deleting data.
+
+There's no equivalent for backup history, because a backup row owns an artifact.
+Delete backups from the Backups page, where deletion removes the artifact too.
+
+## Wipe everything
+
+The nuke option deletes, for **your** user:
+
+- Every **database connection**
+- Every **schedule**, and unregisters its cron scheduler in Redis
+- Every **backup, restore, and migration** job row
+- Every **artifact those jobs referenced**, resolved from the rows themselves
+  rather than by wiping the bucket's prefixes
+
+It keeps your user account and your storage settings — you're left with a working,
+empty install rather than a broken one. Another account's databases, schedules,
+history, and objects are untouched.
+
+<Callout type="error">
+  There is no undo, and pgbr has no backup of its own metadata. "Your data" is
+  still all of it on a single-user install — which is the normal case.
+</Callout>
+
+The row deletions run in one transaction, so metadata is all-or-nothing. Object
+deletion happens after and is best-effort — if the store is unreachable, the rows
+are gone and the objects are orphaned.
+
+<Callout type="info">
+  If your bucket has versioning enabled, wiped objects are recoverable from the
+  provider. That's one more reason to turn it on.
+</Callout>
+
+## Health checks
+
+`GET /api/health` returns `{ "status": "ok" }` with no authentication. It's an
+unconditional liveness probe — it confirms the process is serving HTTP, not that
+Postgres, Redis, or the store are reachable.
+
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/health || exit 1"]
+  interval: 10s
+  timeout: 5s
+  retries: 3
+```
+
+<Callout type="warn">
+  Don't read too much into a green health check. A dashboard with an unreachable
+  Redis still returns `ok`. For real assurance, watch whether scheduled backups are
+  completing — that exercises the whole path.
+</Callout>
+
+The worker has no health endpoint. It's a queue consumer with no HTTP surface;
+monitor it through its logs and through jobs completing.
+
+## Upgrades
+
+<Steps>
+<Step>
+### Pull matching tags
+
+```bash
+docker pull ghcr.io/darseen/pgbr-dashboard:latest
+docker pull ghcr.io/darseen/pgbr-worker:latest
+```
+
+Both images ship from the same commit. **Never run mismatched versions** — they
+share a database schema and a queue payload format.
+</Step>
+<Step>
+### Restart the dashboard first
+
+Its entrypoint runs pending database migrations before the server starts. Letting
+it go first means the schema is current before workers touch it.
+</Step>
+<Step>
+### Restart the worker
+
+It reconciles schedules and re-checks the bucket on boot.
+</Step>
+</Steps>
+
+<Callout type="warn">
+  Migrations run automatically and are not reversible. **Back up pgbr's own
+  Postgres database before upgrading** — it holds your connections, schedules, and
+  history. Losing it doesn't lose your artifacts, but it loses everything that
+  tells you what they are.
+</Callout>
+
+Restarting a worker mid-job is safe: BullMQ's stalled-job detection re-delivers to
+another worker, and processors are idempotent. It isn't free — a re-delivered
+backup re-runs `pg_dump` from the start.
+
+## Backing up pgbr itself
+
+pgbr's metadata database is a normal PostgreSQL database. You can add it to pgbr
+as a connection and let it back itself up.
+
+<Callout type="warn">
+  Circular, and it fails exactly when you need it: if pgbr's own database is lost,
+  the backup of it is recorded in the database that's gone. Keep an independent
+  dump of pgbr's Postgres somewhere pgbr doesn't manage — and keep `ENCRYPTION_KEY`
+  with it, since the dump is useless without it.
+</Callout>
+
+## Monitoring
+
+Worth watching:
+
+| Signal | Why |
+| --- | --- |
+| **Failed jobs** | Job History. A schedule failing silently is the main way backups quietly stop existing. |
+| **Backup sizes** | A sudden drop suggests a filter change or a partial dump. |
+| **Bucket growth** | Retention only applies through live schedules — manual backups accumulate forever. |
+| **Worker logs** | Where reconciliation, bucket provisioning, and cleanup failures surface. |
+| **Redis persistence** | Queue state is rebuildable, but in-flight jobs aren't. |
+
+<Callout type="info">
+  The single best monitor for a backup system is a **restore**. Restore a recent
+  backup into a scratch database on a schedule you actually keep. Everything else
+  tells you a file exists; only a restore tells you it's a backup.
+</Callout>
+
+## Related
+
+<Cards>
+  <Card title="Object storage" href="/docs/guides/object-storage" />
+  <Card title="Troubleshooting" href="/docs/troubleshooting" />
+</Cards>

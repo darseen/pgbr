@@ -1,0 +1,112 @@
+---
+title: Migrating Databases
+description: Move a database to another host by streaming a dump straight into a restore.
+---
+
+A **migration** copies one database into another in a single operation. Instead of
+dumping to a file and restoring from it, pgbr pipes `pg_dump`'s stdout directly
+into `pg_restore`'s stdin.
+
+Nothing is stored. No artifact is produced, and the object store isn't involved at
+all — the data goes source → target and that's it.
+
+<Callout type="info">
+  Migration is the right tool for moving to a new host, cloning production into
+  staging, or upgrading across major versions. It is **not** a backup: there's no
+  artifact and nothing to go back to. If you want a copy you can keep, run a
+  [backup](/docs/guides/backups) and restore it.
+</Callout>
+
+Use the **Migrate** page.
+
+## Choosing endpoints
+
+Source and target can each be either:
+
+- **A saved database** — picked from your connections
+- **A custom URL** — pasted in, not saved
+
+Custom URLs make one-off migrations easy without cluttering your connection list —
+migrating from a host you'll never touch again doesn't deserve a saved
+credential.
+
+pgbr rejects a migration where the source and target URLs are identical.
+
+<Callout type="error">
+  **The target is written to, not merged into.** Everything in the dump lands in
+  the target, and with **Clean** enabled the target's matching objects are dropped
+  first. Confirm which side is which before you start — the form does not
+  distinguish visually between a scratch database and production.
+</Callout>
+
+<Callout type="info">
+  A saved database is resolved by ID **under your user**, on both sides of the
+  migration. Referencing one you don't own resolves to nothing and the job fails
+  with "Source database is required" rather than reading it.
+</Callout>
+
+## Flags
+
+You configure both sides — `pg_dump` flags for the source, `pg_restore` flags for
+the target. They're the same flags documented in the [backup](/docs/reference/backup-flags)
+and [restore](/docs/reference/restore-flags) references, with two overridden:
+
+| Override | Why |
+| --- | --- |
+| **Format is forced to `custom`** | The stream has to be a format `pg_restore` reads from a pipe. |
+| **Parallel jobs forced to 1** on both sides | Parallelism needs a file to seek in; a pipe can't be seeked. |
+
+So whatever you choose for format or parallelism on the migrate page, the job runs
+`-Fc` single-threaded. That's a real constraint: **a migration cannot be
+parallelised.** For a very large database where the copy window matters, a
+directory-format backup with `-j` followed by a parallel restore will beat a
+migration, at the cost of staging the artifact.
+
+The flags that usually matter here are **No owner** and **No privileges** — moving
+between hosts with different roles generally wants both — and **Clean** if the
+target isn't empty.
+
+## Watching it run
+
+Migration is the one operation whose progress streams over its own connection.
+The page holds a request open to `/api/migrate` and follows that specific job
+through to completion, rather than the global event stream everything else uses.
+
+The stepper walks **configure → migrating → complete**.
+
+## Error reporting
+
+Both processes' stderr is captured. On failure, pgbr filters for lines containing
+`error:` or `fatal:` and reports those rather than the whole log, which is what
+makes a migration failure readable — verbose `pg_dump` output is mostly progress
+noise. Messages are truncated at 3,000 characters.
+
+The two processes are wired to fail together: if the restore dies, the dump is
+killed; if the dump dies, the restore's stdin is closed. A broken pipe on the dump
+side is expected in that case and isn't reported as an error.
+
+A migration is only `completed` if **both** processes exit 0.
+
+## What's recorded
+
+A `migration_jobs` row stores both endpoints' names, both URLs (encrypted), both
+flag sets, the status, any error, and the size — but no artifact, because there
+isn't one.
+
+For custom URLs, the name is null; the row still stores the encrypted URL.
+
+<Callout type="info">
+  `size` is the number of bytes `pg_dump` streamed into `pg_restore`, counted as
+  they crossed the pipe — there's no file to measure. It's the size of the dump,
+  not of the data at rest in the target, and it's recorded even if the restore side
+  then fails.
+</Callout>
+
+Clear migration history from [Settings](/docs/guides/maintenance).
+
+## Related
+
+<Cards>
+  <Card title="Backup flags" href="/docs/reference/backup-flags" />
+  <Card title="Restore flags" href="/docs/reference/restore-flags" />
+</Cards>

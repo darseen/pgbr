@@ -1,0 +1,222 @@
+---
+title: Restore Flags
+description: Every pg_restore flag pgbr exposes, the argument it produces, and the rules between them.
+---
+
+Restore flags map onto `pg_restore` arguments. This page is the complete list;
+[Restoring backups](/docs/guides/restores) covers when to use them.
+
+The same set is used by restores and the target side of a
+[migration](/docs/guides/migrations).
+
+## Format
+
+<TypeTable
+  type={{
+    format: {
+      description: 'The source artifact format. Ignored for tracked backups, which record their own.',
+      type: '"custom" | "directory" | "tar"',
+      default: '"custom"',
+      required: true,
+    },
+  }}
+/>
+
+There is no `plain` option — plain SQL isn't an archive `pg_restore` reads. pgbr
+detects a `.sql` artifact and runs `psql` instead.
+
+<Callout type="info">
+  For a **tracked backup**, this field is ignored: pgbr uses the format recorded on
+  the backup row. It only matters for a **custom upload**, where there's no record
+  to consult.
+</Callout>
+
+## Safety
+
+Both default to **on**. Together they make a failed restore a non-event.
+
+<TypeTable
+  type={{
+    singleTransaction: {
+      description: 'Adds --single-transaction. All-or-nothing. Conflicts with jobs > 1.',
+      type: 'boolean',
+      default: 'true',
+      required: true,
+    },
+    exitOnError: {
+      description: 'Adds --exit-on-error. Stop at the first error.',
+      type: 'boolean',
+      default: 'true',
+      required: true,
+    },
+  }}
+/>
+
+<Callout type="warn">
+  Turning both off gives you `pg_restore`'s real defaults: continue past errors,
+  commit what worked, exit 0. That's a partially restored database reporting
+  success. pgbr's defaults are deliberately stricter than the tool's.
+</Callout>
+
+These two are also the only flags that survive a `psql` restore, as `-1` and
+`-v ON_ERROR_STOP=1`.
+
+## Conflict handling
+
+<TypeTable
+  type={{
+    clean: {
+      description: 'Adds --clean. Drops objects before recreating them.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    ifExists: {
+      description: 'Adds --if-exists. Conditional drops. Requires clean.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    create: {
+      description: 'Adds --create. Create the target database first.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+  }}
+/>
+
+<Callout type="error">
+  **`clean` drops data.** It issues `DROP` against every object in the dump before
+  recreating it. On the wrong target that is exactly the disaster a backup tool
+  exists to prevent.
+</Callout>
+
+Clean without If exists errors on objects that aren't there — which, with Exit on
+error on, fails the restore. Enable both together.
+
+## Content selection
+
+<TypeTable
+  type={{
+    dataOnly: {
+      description: 'Adds --data-only. Mutually exclusive with schemaOnly.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    schemaOnly: {
+      description: 'Adds --schema-only. Mutually exclusive with dataOnly.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    noOwner: {
+      description: 'Adds --no-owner. Objects belong to the connecting role.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    noPrivileges: {
+      description: 'Adds --no-privileges. Skips GRANT/REVOKE.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+    disableTriggers: {
+      description: 'Adds --disable-triggers. Data-only restores. Needs superuser.',
+      type: 'boolean',
+      default: 'false',
+      required: true,
+    },
+  }}
+/>
+
+`disableTriggers` only applies to data-only restores. Without it, a data-only
+restore fires foreign-key triggers on every row — slow, and it can fail on rows
+inserted before their referents exist.
+
+## Performance
+
+<TypeTable
+  type={{
+    jobs: {
+      description: 'Adds -j N when > 1. Conflicts with singleTransaction.',
+      type: 'number',
+      default: '1',
+    },
+    verbose: {
+      description: 'Adds --verbose.',
+      type: 'boolean',
+      default: 'true',
+      required: true,
+    },
+  }}
+/>
+
+Parallel restore works from custom and directory formats. It cannot be combined
+with `singleTransaction` — that's a genuine tradeoff, not a limitation: you're
+choosing speed over all-or-nothing.
+
+## Filters
+
+<TypeTable
+  type={{
+    includeSchemas: {
+      description: 'Adds -n per entry. Restore only these schemas.',
+      type: 'string[]',
+      default: '[]',
+    },
+    excludeSchemas: {
+      description: 'Adds -N per entry.',
+      type: 'string[]',
+      default: '[]',
+    },
+    includeTables: {
+      description: 'Adds -t per entry. Restore only these tables.',
+      type: 'string[]',
+      default: '[]',
+    },
+  }}
+/>
+
+There is no exclude-tables option — `pg_restore` has no `-T`. Selective restore
+from a full custom-format dump is the main reason to prefer that format.
+
+<Callout type="warn">
+  `excludeSchemas` is accepted by the schema and passed as `-N`, but `pg_restore`
+  only gained `-N` in **PostgreSQL 10**. Older clients will reject it.
+</Callout>
+
+## Validation rules
+
+Enforced by a shared Zod schema in both the dashboard and the worker.
+
+| Rule | Message |
+| --- | --- |
+| `jobs > 1` forbids `singleTransaction` | Parallel restores (jobs > 1) cannot be run within a singleTransaction. |
+| `dataOnly` and `schemaOnly` are exclusive | Cannot specify both dataOnly and schemaOnly. |
+| `ifExists` requires `clean` | The ifExists flag is only valid when the clean flag is also true. |
+
+## Argument order
+
+```bash
+pg_restore -d "postgresql://..." --clean --if-exists --verbose \
+  --single-transaction --exit-on-error /tmp/pgbr-restore-xyz/artifact.backup
+```
+
+The connection URL comes right after `-d`; the artifact path is the last
+positional argument. For migrations the path is empty and stripped, so
+`pg_restore` reads its stdin.
+
+## Migration override
+
+The migration path forces `jobs` to `1` on the restore side — a pipe can't be
+seeked, so parallel restore is impossible.
+
+## Related
+
+<Cards>
+  <Card title="Restoring backups" href="/docs/guides/restores" />
+  <Card title="Backup flags" href="/docs/reference/backup-flags" />
+</Cards>

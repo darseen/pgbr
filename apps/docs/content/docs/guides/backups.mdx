@@ -1,0 +1,146 @@
+---
+title: Running Backups
+description: Choose a dump format, tune the flags, and understand what you get back.
+---
+
+A backup runs `pg_dump` against one of your databases and stores the result as a
+single object. Click **Backup** on a database card to configure and queue one.
+
+Every flag maps to a real `pg_dump` argument — the [flag
+reference](/docs/reference/backup-flags) documents each one.
+
+## Choosing a format
+
+This is the decision that matters most, because it determines what you can do at
+restore time.
+
+| Format | Flag | Restore with | Choose it when |
+| --- | --- | --- | --- |
+| **Custom** | `-Fc` | `pg_restore` | Almost always — the default |
+| **Directory** | `-Fd` | `pg_restore` | The dump is big enough to want parallelism |
+| **Tar** | `-Ft` | `pg_restore` | You need a plain tar archive |
+| **Plain** | `-Fp` | `psql` | You want readable SQL you can diff or hand-edit |
+
+**Custom is the right default.** It's compressed, and `pg_restore` can selectively
+restore from it — you can restore one table out of a full dump, reorder objects,
+or restore schema and data in separate passes. Plain SQL locks you into replaying
+the whole script, top to bottom.
+
+**Directory** is the only format that supports parallel dumps (`-j`). For a large
+database on a machine with cores to spare, it's meaningfully faster. pgbr collapses
+the directory into a tarball for storage, so you still get one object.
+
+<Callout type="info">
+  **Plain** with **Compress** on is stored as `.sql.gz`, because `pg_dump -Fp -Z9`
+  writes gzip rather than SQL. pgbr decompresses it on the way back in, so it
+  restores normally — but the artifact is a gzip file, not a script you can open
+  directly. Turn Compress **off** if you want readable SQL in the bucket.
+</Callout>
+
+## Compression
+
+**Compress** adds `-Z 9`, `pg_dump`'s maximum level. It's on by default and worth
+keeping — dumps are highly compressible text, and level 9 usually pays for itself.
+
+Two constraints, both enforced before the job is queued:
+
+- **Tar format cannot compress.** Selecting Tar clears the checkbox.
+- **Custom and directory formats compress internally.** `-Z` tunes that.
+
+<Callout type="info">
+  Level 9 costs CPU on the machine running the dump. On a CPU-bound worker with
+  cheap storage, that tradeoff can be wrong — but pgbr exposes compression as a
+  toggle, not a level, so it's all-or-nothing at 9.
+</Callout>
+
+## Parallel jobs
+
+**Parallel jobs** (`-j`) splits the dump across workers. It only works with
+directory format — pgbr enforces this both in the form (the field disables) and in
+the schema (`jobs > 1` with any other format is rejected).
+
+Each parallel job is **another connection to your database**. `-j 8` means 8
+concurrent connections doing sustained reads. Check it against your
+`max_connections` and your tolerance for load on a live database.
+
+## What to dump
+
+The advanced section maps to `pg_dump`'s filters:
+
+| Option | Flag | Effect |
+| --- | --- | --- |
+| Data only | `-a` | No schema |
+| Schema only | `-s` | No data |
+| Clean | `-c` | Emit DROP before CREATE |
+| If exists | `--if-exists` | Make those DROPs conditional |
+| Create | `-C` | Emit CREATE DATABASE |
+| No owner | `-O` | Skip ownership |
+| No privileges | `-x` | Skip GRANT/REVOKE |
+| Use inserts | `--inserts` | `INSERT` statements instead of `COPY` |
+
+Filters take comma-separated lists: include/exclude schemas (`-n` / `-N`),
+include/exclude tables (`-t` / `-T`), and exclude table data
+(`--exclude-table-data`, structure without contents — handy for large log tables).
+
+<Callout type="warn">
+  `--inserts` makes a dump portable to non-PostgreSQL targets and lets a restore
+  survive a single bad row. It is also **dramatically slower** to restore than
+  `COPY`. Don't enable it out of caution on a database you'd actually need to
+  restore quickly.
+</Callout>
+
+### Validation
+
+Some combinations are rejected before the job is queued:
+
+- Data only + Schema only — contradictory
+- Tar + Compress — unsupported
+- If exists without Clean — meaningless
+- Parallel jobs > 1 without directory format — unsupported
+
+**No owner / no privileges** deserve a note. They're what makes a dump restorable
+into a database where your roles don't exist — restoring a production dump into a
+local environment usually wants both. Restoring into an identical environment
+usually wants neither.
+
+## Watching it run
+
+The job appears in **Job History** immediately and updates live. Under the hood
+the worker writes the row before spawning `pg_dump`, so there's always something
+to look at.
+
+If it fails, the error is `pg_dump`'s own stderr, verbatim. Enabling **Verbose**
+makes those messages considerably more useful.
+
+## The result
+
+A completed backup gives you:
+
+- **A single object** in storage at `backups/<job-id>.<ext>`
+- **A recorded size**, counted during the upload
+- **The exact flags** it ran with, stored on the row — so you know what a given
+  artifact actually contains
+- **A download**, brokered through the dashboard
+
+<Callout type="info">
+  Sizes are stored as `bigint`, so large artifacts are fine. Through 2.3.0 this was
+  a 32-bit integer and any backup over **2 GB** was marked failed at the final step
+  — after the dump and upload had already succeeded. If you have jobs stuck in that
+  state from an older version, the artifacts in your bucket are valid.
+</Callout>
+
+## Deleting backups
+
+Delete from the Backups page. Deleting removes the row and, for completed
+backups, the artifact. Object deletion is best-effort — a storage failure is
+logged, not surfaced, so the row goes away regardless.
+
+The database's lifetime backup counter doesn't decrease.
+
+## Related
+
+<Cards>
+  <Card title="Backup flag reference" href="/docs/reference/backup-flags" />
+  <Card title="Restore a backup" href="/docs/guides/restores" />
+  <Card title="Automate with schedules" href="/docs/guides/schedules" />
+</Cards>

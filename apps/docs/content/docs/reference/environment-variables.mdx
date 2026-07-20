@@ -1,0 +1,210 @@
+---
+title: Environment Variables
+description: Every variable pgbr reads, which service reads it, and what happens when it's unset.
+---
+
+## Which service reads what
+
+| Variable | Dashboard | Worker | Required |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | Yes | Yes | Yes |
+| `REDIS_URL` | Yes | Yes | Defaulted |
+| `ENCRYPTION_KEY` | Yes | Yes | Yes |
+| `AUTH_SECRET` | Yes | — | Recommended |
+| `BASE_URL` | Yes | — | Optional |
+| `WORKER_CONCURRENCY` | — | Yes | Defaulted |
+| `STORAGE_*` | Yes | Yes | Defaulted |
+
+The practical takeaway: **`DATABASE_URL`, `REDIS_URL`, `ENCRYPTION_KEY`, and the
+`STORAGE_*` set must match on both services.** Put them in one `.env` file and
+pass it to both containers.
+
+## Core
+
+### `DATABASE_URL`
+
+The PostgreSQL connection string for **pgbr's own metadata** — users, connections,
+job history, schedules. Not a database you're backing up.
+
+```bash
+DATABASE_URL=postgresql://user:pass@host:5432/pgbr
+```
+
+Required by both services, and by `drizzle-kit generate` (which needs it set but
+never connects). The dashboard's entrypoint runs migrations against it on boot.
+
+### `REDIS_URL`
+
+The Redis connection for the job queue.
+
+```bash
+REDIS_URL=redis://redis:6379
+```
+
+Defaults to `redis://localhost:6379`, which is essentially never right inside
+Docker. Set it.
+
+### `ENCRYPTION_KEY`
+
+Encrypts stored connection strings and storage secrets. Any length — it's hashed
+to a 32-byte key with SHA-256.
+
+```bash
+ENCRYPTION_KEY=$(openssl rand -base64 32)
+```
+
+<Callout type="error">
+  **Must be identical on the dashboard and the worker**, and must never change once
+  a connection is saved. There is no rotation flow: change it and every stored
+  connection string and storage secret becomes permanently undecryptable. Back it
+  up somewhere other than the machine running pgbr.
+</Callout>
+
+Encryption and decryption throw if it's missing — the failure surfaces the first
+time a connection is used, not at boot.
+
+## Dashboard
+
+### `AUTH_SECRET`
+
+Signs user sessions.
+
+```bash
+AUTH_SECRET=$(openssl rand -base64 32)
+```
+
+If unset, the dashboard's entrypoint generates a temporary one at startup and logs
+that it did. Each restart then invalidates every session, and multiple dashboard
+replicas can't share sessions at all. Set it explicitly.
+
+### `BASE_URL`
+
+The public base URL of your instance.
+
+```bash
+BASE_URL=https://pgbr.example.com
+```
+
+Optional — auto-detected from incoming requests when unset. Set it if you're
+behind a reverse proxy that doesn't forward the `Host` header correctly, or if
+auth callbacks resolve to the wrong origin.
+
+This is a **server-side** variable. The browser always calls auth on the origin it
+loaded the page from, so there's nothing to configure there and no
+`NEXT_PUBLIC_BASE_URL`.
+
+<Callout type="info">
+  Better Auth trusts `http://localhost:3000` and `http://<container-hostname>:3000`
+  regardless. Serving from any other origin generally means setting this — an
+  untrusted origin fails with `INVALID_ORIGIN`.
+</Callout>
+
+## Worker
+
+### `WORKER_CONCURRENCY`
+
+How many jobs **each** queue processes concurrently. Defaults to `5`.
+
+```bash
+WORKER_CONCURRENCY=3
+```
+
+<Callout type="warn">
+  This is per queue, not per worker. At the default, one worker can be running 5
+  backups, 5 restores, and 5 migrations simultaneously — 15 `pg_dump`/`pg_restore`
+  processes, each with a database connection and scratch disk. Size it against your
+  database's `max_connections` and the worker's disk, not against how fast you'd
+  like the queue to drain.
+</Callout>
+
+Any non-numeric value silently falls back to `5`.
+
+## Storage
+
+All six default to the bundled SeaweedFS, so a fresh install works untouched.
+
+<Callout type="warn">
+  **A connection saved from the settings page overrides all of these**, silently.
+  The settings page shows which source is active.
+</Callout>
+
+### `STORAGE_ENDPOINT`
+
+The S3-compatible endpoint URL. Default `http://seaweedfs:8333`.
+
+### `STORAGE_REGION`
+
+Default `us-east-1`. Must match your bucket's region; R2 uses `auto`.
+
+### `STORAGE_BUCKET`
+
+Default `pgbr`. Created automatically if missing and your credentials allow it.
+
+### `STORAGE_ACCESS_KEY_ID`
+
+Default `pgbr`.
+
+### `STORAGE_SECRET_ACCESS_KEY`
+
+Default `pgbrsecret`.
+
+<Callout type="error">
+  The SeaweedFS defaults are published in this documentation and the repository.
+  They're only safe because the bundled store isn't reachable outside the Docker
+  network. Never expose it.
+</Callout>
+
+### `STORAGE_FORCE_PATH_STYLE`
+
+Default `true`. Accepts `true` or `1` as true; anything else is false.
+
+- `true` → `https://endpoint/bucket/key` — MinIO, SeaweedFS
+- `false` → `https://bucket.endpoint/key` — S3, R2, B2
+
+Getting this wrong usually shows up as a DNS or 404 error that doesn't mention
+addressing.
+
+## Build-time
+
+| Variable | Effect |
+| --- | --- |
+| `NODE_ENV` | Set to `production` in both images. |
+| `NEXT_TELEMETRY_DISABLED` | Set to `1` in the dashboard image. |
+| `PORT` | The dashboard's listen port. Defaults to `3000`. |
+| `HOSTNAME` | Set to `0.0.0.0` in the dashboard image so it accepts external connections. |
+
+## A complete example
+
+```bash title=".env"
+# Shared — must match on both services
+DATABASE_URL=postgresql://pgbr:secret@postgres:5432/pgbr
+REDIS_URL=redis://redis:6379
+ENCRYPTION_KEY=hX8vN2mQ4pR7tY1wZ3aB5cD6eF9gH0jK2lM4nP6qR8s=
+
+# Dashboard only
+AUTH_SECRET=aB3cD5eF7gH9jK1lM3nP5qR7sT9uV1wX3yZ5aB7cD9e=
+BASE_URL=https://pgbr.example.com
+
+# Worker only
+WORKER_CONCURRENCY=3
+
+# Object storage — must match on both services
+STORAGE_ENDPOINT=https://s3.us-east-1.amazonaws.com
+STORAGE_REGION=us-east-1
+STORAGE_BUCKET=my-pgbr-backups
+STORAGE_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+STORAGE_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+STORAGE_FORCE_PATH_STYLE=false
+```
+
+<Callout type="warn">
+  The secrets above are examples. Generate your own — anything in documentation is
+  public by definition.
+</Callout>
+
+## Related
+
+<Cards>
+  <Card title="Installation" href="/docs/getting-started/installation" />
+  <Card title="Object storage" href="/docs/guides/object-storage" />
+</Cards>

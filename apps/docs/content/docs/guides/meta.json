@@ -1,0 +1,13 @@
+{
+  "title": "Guides",
+  "icon": "BookOpen",
+  "pages": [
+    "databases",
+    "backups",
+    "restores",
+    "schedules",
+    "migrations",
+    "object-storage",
+    "maintenance"
+  ]
+}

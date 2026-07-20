@@ -1,0 +1,92 @@
+---
+title: Introduction
+description: What pgbr is, what it does, and how its pieces fit together.
+icon: House
+---
+
+**pgbr** is a self-hosted PostgreSQL backup, restore, and migration tool. It
+wraps the utilities you already trust — `pg_dump`, `pg_restore`, and `psql` — in
+a web interface, so backups become a scheduled, auditable operation instead of a
+shell script someone forgot to renew.
+
+It is not an abstraction over PostgreSQL's backup tooling. Every flag you set in
+the UI maps to a real `pg_dump` or `pg_restore` argument, and the artifact you
+download is exactly what those tools produced.
+
+## What you can do with it
+
+<Cards>
+  <Card
+    title="Back up databases"
+    href="/docs/guides/backups"
+    description="Run one-off dumps in any pg_dump format, with full control over filters, compression, and parallelism."
+  />
+  <Card
+    title="Restore from an artifact"
+    href="/docs/guides/restores"
+    description="Restore from a tracked backup, or upload a dump file pgbr has never seen before."
+  />
+  <Card
+    title="Schedule automated backups"
+    href="/docs/guides/schedules"
+    description="Cron schedules with timezone support and per-schedule retention limits."
+  />
+  <Card
+    title="Migrate between databases"
+    href="/docs/guides/migrations"
+    description="Stream a dump straight into a target database — no intermediate file."
+  />
+</Cards>
+
+## How it is put together
+
+pgbr runs as two stateless services backed by three stateful ones:
+
+| Component | Role | Stateful |
+| --- | --- | --- |
+| **Dashboard** | Next.js web UI and API. Enqueues jobs, brokers downloads. | No |
+| **Worker** | Consumes the queue and runs `pg_dump` / `pg_restore`. | No |
+| **Postgres** | pgbr's own metadata: users, connections, job history, schedules. | Yes |
+| **Redis** | The job queue (BullMQ) and cron scheduler state. | Yes |
+| **Object store** | Every backup artifact. S3-compatible. | Yes |
+
+The dashboard and worker keep no durable local storage. They stream artifacts to
+and from the object store and use throwaway scratch space only for the duration
+of a job, which means you can run as many workers as you like against one bucket.
+
+A bundled [SeaweedFS](https://github.com/seaweedfs/seaweedfs) store makes a fresh
+install work with zero setup; point pgbr at real object storage (S3, R2,
+Backblaze, Wasabi) when you need durability and scale.
+
+<Callout type="info">
+  Read [Architecture](/docs/concepts/architecture) for how a job actually flows
+  through these pieces.
+</Callout>
+
+## Where to start
+
+<Cards>
+  <Card
+    title="Installation"
+    href="/docs/getting-started/installation"
+    description="Get pgbr running with Docker Compose or plain docker run."
+  />
+  <Card
+    title="Quickstart"
+    href="/docs/getting-started/quickstart"
+    description="From an empty install to your first restored backup."
+  />
+</Cards>
+
+## Requirements
+
+- Docker, or Node.js 24+ and pnpm if you are running from source
+- A PostgreSQL database for pgbr's own metadata
+- Redis 8 (earlier versions work; that's what the project tests against)
+- An S3-compatible object store — bundled if you don't have one
+
+<Callout type="warn">
+  pgbr is designed to be run on a private network or behind an authenticating
+  proxy. See [Security](/docs/concepts/security) for the threat model it does and
+  does not cover.
+</Callout>

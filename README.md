@@ -99,7 +99,7 @@ Once the containers are running, you need to create your admin user to start man
 
 1.  Navigate to your server's IP address on port 3000 in your web browser: `http://<your-server-ip>:3000`
 
-2.  You will be prompted to register. The first user to register automatically becomes the admin.
+2.  You will be prompted to register. The first user to register automatically becomes the admin, and sign-up closes once that account exists — so register promptly if the port is reachable by others.
 
 3.  Log in, add your first PostgreSQL connection, and start managing your backups!
 

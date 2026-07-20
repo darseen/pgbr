@@ -1,0 +1,271 @@
+---
+title: Installation
+description: Run pgbr with Docker Compose or plain docker run, and understand what each service needs.
+---
+
+pgbr ships as two published images:
+
+```bash
+docker pull ghcr.io/darseen/pgbr-dashboard:latest
+docker pull ghcr.io/darseen/pgbr-worker:latest
+```
+
+Both are built from the same monorepo and released together, so **always run
+matching tags**. Images are tagged `latest` (stable releases only) and with the
+exact version, e.g. `2.3.0`.
+
+## Configure the environment
+
+The dashboard and worker share most of their configuration. Put the shared values
+in a single `.env` file and pass it to both containers so the two can never drift
+apart:
+
+```bash title=".env"
+DATABASE_URL=postgresql://user:pass@host:5432/pgbr
+REDIS_URL=redis://redis:6379
+ENCRYPTION_KEY=your-encryption-key
+AUTH_SECRET=your-secret-key
+
+# Object store — these defaults target the bundled SeaweedFS.
+STORAGE_ENDPOINT=http://seaweedfs:8333
+STORAGE_REGION=us-east-1
+STORAGE_BUCKET=pgbr
+STORAGE_ACCESS_KEY_ID=pgbr
+STORAGE_SECRET_ACCESS_KEY=pgbrsecret
+STORAGE_FORCE_PATH_STYLE=true
+```
+
+Generate the two secrets with:
+
+```bash
+openssl rand -base64 32   # ENCRYPTION_KEY
+openssl rand -base64 32   # AUTH_SECRET
+```
+
+<Callout type="error">
+  `ENCRYPTION_KEY` must be **identical** on the dashboard and the worker, and must
+  never change once you have saved a database connection. It decrypts your stored
+  connection strings and storage credentials — rotating it makes every existing
+  connection permanently unreadable.
+</Callout>
+
+`AUTH_SECRET` is only read by the dashboard, but it is harmless for the worker to
+receive it from the shared file. See the [environment variable
+reference](/docs/reference/environment-variables) for every supported value.
+
+## Option 1: Docker Compose
+
+The repository's `compose.yaml` wires up a complete stack. For a production-shaped
+deployment, the shape you want is:
+
+```yaml title="compose.yaml"
+x-shared-env: &shared-env
+  DATABASE_URL: postgres://root:password@pgbr_db:5432/pgbr
+  REDIS_URL: redis://redis:6379
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  STORAGE_ENDPOINT: http://seaweedfs:8333
+  STORAGE_REGION: us-east-1
+  STORAGE_BUCKET: pgbr
+  STORAGE_ACCESS_KEY_ID: pgbr
+  STORAGE_SECRET_ACCESS_KEY: pgbrsecret
+  STORAGE_FORCE_PATH_STYLE: "true"
+
+services:
+  dashboard:
+    image: ghcr.io/darseen/pgbr-dashboard:latest
+    ports:
+      - "3000:3000"
+    environment:
+      <<: *shared-env
+      AUTH_SECRET: ${AUTH_SECRET}
+    depends_on:
+      pgbr_db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      seaweedfs: { condition: service_healthy }
+
+  worker:
+    image: ghcr.io/darseen/pgbr-worker:latest
+    environment:
+      <<: *shared-env
+    depends_on:
+      pgbr_db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      seaweedfs: { condition: service_healthy }
+
+  pgbr_db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: pgbr
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d pgbr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - pgbr_db:/var/lib/postgresql/data
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:latest
+    restart: unless-stopped
+    command: "server -dir=/data -s3 -s3.port=8333 -ip.bind=0.0.0.0"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:9333/cluster/healthz || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - seaweedfs_data:/data
+
+volumes:
+  pgbr_db:
+  seaweedfs_data:
+```
+
+```bash
+docker compose up -d
+```
+
+<Callout type="warn">
+  The `compose.yaml` in the repository is a **development** setup: it builds from
+  source, ships hardcoded example secrets, and includes two throwaway `test_db`
+  containers to practise against. Don't deploy it as-is.
+</Callout>
+
+## Option 2: docker run
+
+<Steps>
+
+<Step>
+
+### Create a network
+
+```bash
+docker network create pgbr
+```
+
+</Step>
+
+<Step>
+
+### Start Redis
+
+```bash
+docker run -d --network pgbr --name redis redis:8-alpine
+```
+
+</Step>
+
+<Step>
+
+### Start the object store
+
+This is the only component that needs a durable volume.
+
+```bash
+docker run -d --network pgbr \
+  -v /path/on/your/machine:/data \
+  --name seaweedfs \
+  chrislusf/seaweedfs:latest server -dir=/data -s3 -s3.port=8333
+```
+
+Skip this step if you are using external object storage — set the `STORAGE_*`
+variables to point at it instead.
+
+</Step>
+
+<Step>
+
+### Start the dashboard
+
+```bash
+docker run -d --network pgbr \
+  -p 3000:3000 \
+  --env-file .env \
+  --name pgbr \
+  ghcr.io/darseen/pgbr-dashboard:latest
+```
+
+</Step>
+
+<Step>
+
+### Start the worker
+
+```bash
+docker run -d --network pgbr \
+  --env-file .env \
+  --name pgbr-worker \
+  ghcr.io/darseen/pgbr-worker:latest
+```
+
+</Step>
+
+</Steps>
+
+You'll also need a PostgreSQL instance for `DATABASE_URL` — either an existing
+one or a `postgres:18-alpine` container on the same network.
+
+## What happens on first boot
+
+The dashboard's entrypoint runs **database migrations automatically** before the
+server starts, so you never migrate by hand:
+
+```bash
+node packages/db/dist/migrate.js
+```
+
+The worker, on boot:
+
+1. Reconciles backup schedules from Postgres into Redis, behind a short Redis
+   lock so exactly one replica does it when you run several.
+2. Creates the configured storage bucket if it doesn't exist.
+
+<Callout type="info">
+  If `AUTH_SECRET` is unset, the dashboard generates a temporary one at startup.
+  That works, but every restart invalidates all sessions — set it explicitly.
+</Callout>
+
+## Scaling
+
+The dashboard and worker are stateless, so both scale horizontally with no extra
+configuration:
+
+- **More workers** — run more `pgbr-worker` containers. Schedule reconciliation is
+  lock-guarded and job processors are idempotent, so replicas coordinate safely.
+- **Per-worker throughput** — set `WORKER_CONCURRENCY` (default `5`). This is the
+  concurrency of *each* queue, so one worker can run up to 5 backups, 5 restores,
+  and 5 migrations at once.
+
+<Callout type="warn">
+  Concurrency multiplies real load. Each running job is a `pg_dump`/`pg_restore`
+  process against your database, plus scratch disk in the worker container. Size
+  `WORKER_CONCURRENCY` against your database's connection limit and the worker's
+  disk, not against how fast you'd like the queue to drain.
+</Callout>
+
+## Next steps
+
+<Cards>
+  <Card
+    title="Quickstart"
+    href="/docs/getting-started/quickstart"
+    description="Create your admin user and run your first backup."
+  />
+  <Card
+    title="Configure object storage"
+    href="/docs/guides/object-storage"
+    description="Move off the bundled store onto S3, R2, or Backblaze."
+  />
+</Cards>

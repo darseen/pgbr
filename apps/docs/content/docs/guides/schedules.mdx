@@ -1,0 +1,139 @@
+---
+title: Scheduling Backups
+description: Cron schedules, timezones, and retention.
+---
+
+A schedule runs a backup on a cron pattern. Schedules live in Postgres; the cron
+registrations in Redis are derived from them and rebuilt on every worker boot, so
+a Redis flush doesn't silently cost you your backups.
+
+Manage them from the **Schedules** page.
+
+## Creating a schedule
+
+| Field | Notes |
+| --- | --- |
+| **Name** | A label. 1–100 characters. |
+| **Database** | The database to back up. **Fixed after creation.** |
+| **Schedule** | A preset, or a custom cron expression. |
+| **Timezone** | Any IANA timezone. Defaults to your browser's. |
+| **Keep last** | How many successful backups to retain. |
+| **Enabled** | Whether it's registered to run. |
+
+Below those sit the same `pg_dump` flags as a one-off backup — see the [flag
+reference](/docs/reference/backup-flags).
+
+<Callout type="info">
+  A schedule's **database cannot be changed** after creation. Everything else —
+  cron, timezone, flags, retention — can. To move a schedule to a different
+  database, create a new one.
+</Callout>
+
+## Presets and cron
+
+The presets cover the common cases and write the cron expression for you:
+
+| Preset | Cron | Runs |
+| --- | --- | --- |
+| Hourly | `0 * * * *` | Every hour, on the hour |
+| Daily | `0 H * * *` | Every day at your chosen hour |
+| Weekly | `0 H * * D` | Weekly, on your chosen day |
+| Monthly | `0 H D * *` | Monthly, on your chosen date |
+
+Choose **Custom** to write the expression yourself. pgbr requires exactly **five
+fields** — `minute hour day month weekday` — and validates the expression before
+saving, so a malformed pattern is rejected rather than silently never firing.
+
+```
+┌───────────── minute (0–59)
+│ ┌─────────── hour (0–23)
+│ │ ┌───────── day of month (1–31)
+│ │ │ ┌─────── month (1–12)
+│ │ │ │ ┌───── day of week (0–6, Sunday = 0)
+│ │ │ │ │
+* * * * *
+```
+
+The form shows a plain-English description of whatever expression is in the field,
+which is the fastest way to catch a cron you've misread.
+
+<Callout type="warn">
+  Setting **day of month** and **day of week** together is an OR in cron, not an
+  AND — `0 0 1 * 1` runs on the 1st *and* every Monday. This trips people up
+  regularly; read the description the form generates.
+</Callout>
+
+## Timezones
+
+Schedules store an IANA timezone and the cron fires in that zone, so a "daily at
+2am" schedule stays at 2am local across DST changes rather than drifting by an
+hour twice a year.
+
+The form defaults to your browser's timezone. The database column defaults to
+`UTC`.
+
+<Callout type="info">
+  DST transitions have the usual edge cases: a schedule at 2:30am fires twice on
+  the day the clock goes back and not at all on the day it springs forward. For
+  hourly-or-finer schedules it doesn't matter. For a daily backup, avoid the hour
+  your zone shifts.
+</Callout>
+
+## Retention
+
+**Keep last** bounds growth. With `7`, each successful backup from that schedule
+prunes anything beyond the newest 7 — deleting both the row and the artifact.
+The range is 1–365. Leave it unset to keep everything forever.
+
+What retention does **not** touch:
+
+- **Failed backups** are always kept. A schedule that has been failing for a week
+  shouldn't quietly erase the evidence.
+- **Manual backups** — pruning only ever considers backups from the same schedule.
+- **The lifetime backup counter**, which only counts up.
+
+Pruning runs after each successful backup from that schedule. A retention failure
+is logged but never fails the backup — an unpruned bucket is a smaller problem
+than a lost backup.
+
+<Callout type="warn">
+  Retention counts backups, not time. "Keep last 7" on an hourly schedule is seven
+  *hours* of history. Set it against how far back you'd actually need to go.
+</Callout>
+
+## Enabling and disabling
+
+The toggle registers or unregisters the cron scheduler in Redis. A disabled
+schedule keeps its row and its history, and simply doesn't run — it's also skipped
+by worker boot reconciliation.
+
+## Deleting
+
+Deleting removes the schedule row and unregisters its scheduler. **Backups it
+created are kept** — their `scheduleId` becomes null and their artifacts stay. You
+lose the schedule, not its output.
+
+Once unlinked, those backups are no longer pruned by anything. Retention only ever
+applies through a live schedule, so delete a schedule and its old backups become
+yours to manage.
+
+## How schedules stay consistent
+
+Two mechanisms keep Postgres and Redis in agreement:
+
+1. **Write ordering with rollback.** Creating a schedule writes Postgres first and
+   Redis second. If registration fails, the row is rolled back — so you never see
+   a schedule in the list that isn't actually registered.
+2. **Boot reconciliation.** Every worker, on startup, takes a short Redis lock and
+   re-registers every enabled schedule while removing orphaned schedulers. It's
+   idempotent, and it's the backstop, not the primary path.
+
+Both paths build the registration through one shared function, so the dashboard
+and the worker cannot disagree about what a schedule means.
+
+## Related
+
+<Cards>
+  <Card title="Backup flag reference" href="/docs/reference/backup-flags" />
+  <Card title="Jobs and queues" href="/docs/concepts/jobs-and-queues" />
+</Cards>

@@ -1,0 +1,146 @@
+---
+title: Quickstart
+description: From a fresh install to a backup you have restored and verified.
+---
+
+This walks you from an empty pgbr install to a backup you have actually restored
+— the only kind worth having. It assumes the stack from
+[Installation](/docs/getting-started/installation) is running.
+
+<Steps>
+
+<Step>
+
+### Create your admin user
+
+Open `http://<your-server-ip>:3000`. With no users in the database, pgbr sends
+you to the sign-up page. Register with a username, email, and password (minimum
+8 characters).
+
+<Callout type="warn">
+  The **first user to register becomes the admin**, and sign-up is open until they
+  do. On a network where anyone can reach port 3000, register immediately —
+  whoever gets there first claims the instance. See
+  [Security](/docs/concepts/security).
+</Callout>
+
+Once an account exists sign-up closes: the page redirects to sign-in, and the
+endpoint behind it rejects new accounts outright.
+
+</Step>
+
+<Step>
+
+### Add a database connection
+
+From the dashboard, add your first PostgreSQL connection:
+
+| Field | Notes |
+| --- | --- |
+| **Name** | A label for the UI. Must be unique. |
+| **Connection URL** | A standard `postgresql://user:pass@host:5432/dbname` string. |
+
+The connection string is encrypted with `ENCRYPTION_KEY` before it is written to
+the database — see [Security](/docs/concepts/security).
+
+Use **Ping** on the database card to confirm pgbr can reach it. That runs
+`pg_isready` with a 5-second timeout from the dashboard container, so it also
+verifies networking, not just credentials.
+
+<Callout type="info">
+  From inside Docker, `localhost` means the container. Use the Compose service
+  name (`pgbr_db`, `test_db1`) or the host's real address.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Run a backup
+
+Click **Backup** on the database card. The defaults are a good starting point:
+
+- **Format**: Custom (`-Fc`) — compressed, and the only format `pg_restore` can
+  filter selectively on restore
+- **Compress**: on
+- **Verbose**: on
+
+Submit, and the job is queued. It appears in **Job History** immediately and
+updates live as the worker picks it up — pgbr streams job events over
+Server-Sent Events, so you never reload to watch progress.
+
+A finished backup lands in the **Backups** page with its size and storage key.
+
+</Step>
+
+<Step>
+
+### Restore it
+
+The point of a backup is the restore. Restore into a scratch database — never
+test against production.
+
+Click **Restore** on a database card, pick the backup you just made, and submit.
+Two restore defaults matter here:
+
+- **Single transaction** is on — the restore is all-or-nothing, so a failure
+  leaves the target untouched
+- **Exit on error** is on — the restore stops at the first error instead of
+  plowing through
+
+<Callout type="warn">
+  Restoring writes to the target database. If the target already has the objects
+  in the dump, the restore fails on conflicts unless you enable **Clean**
+  (`--clean`), which *drops* those objects first.
+</Callout>
+
+</Step>
+
+<Step>
+
+### Automate it
+
+A backup you have to remember to run isn't a backup. Go to **Schedules**, create
+one, and pick a preset (hourly, daily, weekly, monthly) or write a cron
+expression.
+
+Set **Keep last** to bound growth — with `7`, each new successful backup prunes
+the oldest beyond the newest 7, deleting both the row and the artifact. Failed
+backups are always kept so a silent failure stays visible.
+
+See [Schedules](/docs/guides/schedules) for the details.
+
+</Step>
+
+</Steps>
+
+## What you have now
+
+- An encrypted database connection pgbr can reach
+- A backup artifact in object storage, restored and verified
+- A schedule keeping it fresh, with retention keeping it bounded
+
+## Next steps
+
+<Cards>
+  <Card
+    title="Backup flags"
+    href="/docs/reference/backup-flags"
+    description="Every pg_dump flag pgbr exposes, and when each one matters."
+  />
+  <Card
+    title="Object storage"
+    href="/docs/guides/object-storage"
+    description="Move off the bundled store before you depend on these backups."
+  />
+  <Card
+    title="Architecture"
+    href="/docs/concepts/architecture"
+    description="What actually happens between clicking Backup and the artifact landing."
+  />
+  <Card
+    title="Migrations"
+    href="/docs/guides/migrations"
+    description="Move a database to a new host in one operation."
+  />
+</Cards>

@@ -1,0 +1,155 @@
+---
+title: Security
+description: Encryption, authentication, ownership, and the threat model pgbr does and does not cover.
+---
+
+pgbr holds credentials to every database you point it at, and artifacts
+containing their full contents. It's worth understanding exactly what it protects
+and what it assumes.
+
+## Encryption at rest
+
+Database connection strings and stored storage secrets are encrypted before they
+touch Postgres, using **AES-256-GCM**:
+
+- The key is `SHA-256(ENCRYPTION_KEY)`, so any length of input yields a valid
+  32-byte key
+- A fresh random IV per encryption
+- Stored as `iv:authTag:ciphertext`, hex-encoded
+
+GCM is authenticated, so tampering with a stored ciphertext fails decryption
+rather than silently yielding garbage.
+
+<Callout type="error">
+  **`ENCRYPTION_KEY` is unrecoverable.** Lose it and every stored connection string
+  and storage secret is permanently undecryptable. Change it and pgbr will throw on
+  every existing row. It must be identical on the dashboard and the worker, and it
+  must be backed up somewhere other than the machine running pgbr.
+</Callout>
+
+There is no key rotation flow. To change the key you must delete and re-add every
+database connection and storage setting under the new one.
+
+## What is *not* encrypted
+
+- **Backup artifacts.** A dump in object storage is written as-is — the full
+  contents of your database, unencrypted. If that matters, enable server-side
+  encryption on the bucket and control access there.
+- **Migration job records** store both endpoints' URLs encrypted, but the
+  `databases` table's `name` and all job metadata are plaintext.
+
+## Authentication
+
+Authentication is [Better Auth](https://better-auth.com) with email/password and a
+username plugin. Sessions are database-backed rows with tokens, not stateless
+JWTs, so a deleted session takes effect immediately.
+
+- Passwords must be at least 8 characters — Better Auth hashes them
+- `AUTH_SECRET` signs sessions; if unset, the dashboard generates a throwaway one
+  at boot and every restart logs everyone out
+
+### Route protection
+
+A proxy (middleware) gates `/`, `/sign-up`, and `/dashboard/*`:
+
+- No session on a `/dashboard` route → redirected to sign-in
+- A session on `/` → redirected to the dashboard
+- No users exist and you hit `/` → redirected to sign-up
+- A user exists and you hit `/sign-up` → redirected to sign-in
+
+Independently, **every server action and API route re-checks the session itself**.
+The proxy is a redirect convenience, not the security boundary — which is the
+right way round, since middleware alone has repeatedly proven a poor place to put
+authorization.
+
+### Sign-up closes after the first account
+
+pgbr is single-admin: the first account claims the instance, and sign-up closes
+behind it. This is enforced in a Better Auth `before` hook on the sign-up
+endpoint itself, not in the page — once a user exists, a direct `POST` to
+`/api/auth/sign-up/email` is rejected with **403 Forbidden**, exactly like the
+redirect the page performs. There is no window in which the endpoint accepts an
+account that the UI would refuse.
+
+<Callout type="info">
+  This still isn't a reason to expose the port. Sign-up being closed doesn't harden
+  sign-in, and pgbr serves plain HTTP — keep it on a private network or behind an
+  authenticating proxy.
+</Callout>
+
+## Ownership
+
+Records are owned by the user who created them. Backup, restore, migrate,
+database, and schedule operations are scoped by `userId` in both the dashboard
+action and again in the worker — the worker does not trust the queue payload.
+Naming a database you don't own resolves to nothing, so the job fails rather than
+reading it.
+
+Destructive actions are scoped the same way. **Wipe everything** deletes your
+databases, schedules, job history, and the artifacts those jobs produced — and
+only yours. Another account's rows and objects are untouched.
+
+There are no roles or permissions. "The first user is the admin" describes who
+gets in first — there is no `role` column and no privileged account. Every user is
+equivalent. Sign-up closes after that first account, so additional users exist
+only if you create them directly in the database.
+
+## Credential exposure
+
+- **The UI never receives plaintext connection strings.** Connection strings are
+  decrypted only on the server, and what reaches the browser is masked
+  (`postgres://user:••••••••@host:5432/db`). Editing a database leaves the
+  connection field blank; submitting it empty keeps the stored credential, so the
+  plaintext never needs to round-trip through the client.
+- **Storage secrets never leave the server.** The settings status endpoint returns
+  the endpoint, region, bucket, and access key ID, but never the secret.
+- **Passwords are passed to child processes via `PGPASSWORD`**, not on the command
+  line. `pg_dump`, `pg_restore`, `psql`, and `pg_isready` receive a connection URI
+  with the password stripped, so the container's process table shows only host,
+  user, and database name.
+
+## Custom restore uploads
+
+Uploading a restore source streams the raw body straight to `custom-uploads/`.
+The upload is authenticated, but:
+
+- The file is **not validated** as a real dump — a bad file surfaces as a
+  `pg_restore` error
+- There is **no size limit**, so an authenticated user can fill the bucket
+- The extension comes from an `x-filename` header, sanitized to alphanumerics
+
+The worker verifies the object exists before use, restores from it, then deletes
+it — a custom upload is a throwaway.
+
+## Transport
+
+pgbr serves plain HTTP on port 3000. There is no built-in TLS. Put it behind a
+reverse proxy that terminates TLS, and set `BASE_URL` if that proxy doesn't
+forward the `Host` header correctly.
+
+<Callout type="info">
+  Better Auth trusts `http://localhost:3000` and `http://<container-hostname>:3000`
+  by default. Serving pgbr from another origin generally means setting `BASE_URL`
+  to it.
+</Callout>
+
+## Recommendations
+
+1. **Set `ENCRYPTION_KEY` and `AUTH_SECRET` explicitly** and back up the former
+   separately from the machine
+2. **Don't expose port 3000 to the internet** — private network or authenticating
+   proxy
+3. **Register your account immediately** after first boot — the instance is
+   unclaimed until you do, and whoever registers first owns it
+4. **Give pgbr its own database role** with only the privileges its dumps need
+5. **Encrypt the bucket** if your dumps contain sensitive data
+6. **Treat one pgbr install as one trust domain.** Ownership is enforced
+   consistently, but there are no roles, no audit log, and no isolation beyond it —
+   accounts separate data, not privilege
+
+## Related
+
+<Cards>
+  <Card title="Environment variables" href="/docs/reference/environment-variables" />
+  <Card title="Storage" href="/docs/concepts/storage" />
+</Cards>

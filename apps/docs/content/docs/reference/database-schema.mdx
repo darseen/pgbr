@@ -1,0 +1,210 @@
+---
+title: Database Schema
+description: The tables in pgbr's metadata database and how they relate.
+---
+
+pgbr's own Postgres holds users, connections, job history, schedules, and storage
+settings. Schema is defined with Drizzle in `packages/db/src/schema/`; migrations
+live in `packages/db/drizzle/` and are applied automatically by the dashboard's
+entrypoint on boot.
+
+<Callout type="info">
+  This is pgbr's **metadata** database, not a database you back up. Losing it
+  doesn't lose your artifacts — but it loses everything that tells you what those
+  artifacts are.
+</Callout>
+
+## Relationships
+
+```mermaid
+erDiagram
+    users ||--o{ databases : owns
+    users ||--o{ backup_schedules : owns
+    users ||--o{ backup_jobs : owns
+    users ||--o{ restore_jobs : owns
+    users ||--o{ migration_jobs : owns
+    users ||--o{ sessions : has
+    users ||--o{ accounts : has
+    databases ||--o{ backup_schedules : "scheduled by"
+    databases ||--o{ backup_jobs : "backed up by"
+    databases ||--o{ restore_jobs : "restored into"
+    backup_schedules ||--o{ backup_jobs : produces
+```
+
+## Auth tables
+
+Managed by Better Auth.
+
+### `users`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key |
+| `name` | text | |
+| `email` | text | Unique |
+| `email_verified` | boolean | Defaults false; pgbr doesn't verify |
+| `username` | text | Unique |
+| `display_username` | text | |
+| `created_at` / `updated_at` | timestamp | |
+
+There is **no role column**. "The first user is the admin" means they got in
+first, not that they hold a privilege — every user is equivalent.
+
+### `sessions`, `accounts`, `verifications`
+
+Session tokens with expiry and IP/user-agent, credential records (hashed passwords
+live in `accounts.password`), and verification tokens. All cascade on user
+deletion, and each is indexed on the column it's looked up by.
+
+## `databases`
+
+A saved connection.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text | Primary key, UUID |
+| `user_id` | uuid | → `users.id`, **set null** on delete |
+| `name` | text | Unique **per user** (`databases_user_id_name_unique`) |
+| `url` | text | Encrypted `iv:authTag:ciphertext` |
+| `backup_count` | integer | Lifetime successful backups; only increments |
+| `created_at` / `updated_at` | timestamp | |
+
+`name` is unique per owner, matching what the create and update actions check, so
+two users can each have a database named `production`. Reusing one of your own
+names is rejected with "Database name already exists" rather than a constraint
+violation surfaced as a generic error.
+
+## `backup_jobs`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text | Primary key. A UUID, or a sanitized BullMQ scheduler ID |
+| `database_id` | text | → `databases.id`, set null on delete |
+| `user_id` | uuid | → `users.id`, set null on delete |
+| `schedule_id` | text | → `backup_schedules.id`, set null on delete |
+| `database_name` | text | **Denormalized** — survives the database being deleted |
+| `status` | text | `pending` / `running` / `completed` / `failed` |
+| `storage_key` | text | Logical object key, independent of any mount |
+| `flags` | jsonb | The exact flags this dump ran with |
+| `error` | text | The tool's stderr on failure |
+| `size` | bigint | Bytes, counted during upload |
+| `started_at` / `completed_at` | timestamp | |
+
+The FKs all **set null** rather than cascade, which is what lets a backup outlive
+its database and still be downloadable. `database_name` is denormalized for the
+same reason — after the database is gone, it's the only record of what was dumped.
+
+`flags` being stored per job is what makes an artifact self-describing: the
+restore path reads the recorded format to decide whether the artifact needs
+expanding.
+
+`size` is a `bigint`. It was a 32-bit `integer` through 2.3.0, which capped at
+2,147,483,647 bytes (~2 GB) and failed any larger backup at the very last step —
+after the dump and upload had both succeeded. Migration `0004` widens the column
+in place; existing rows are unaffected.
+
+## `backup_schedules`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text | Primary key. Also the BullMQ scheduler key |
+| `user_id` | uuid | → `users.id`, **cascade** on delete |
+| `database_id` | text | → `databases.id`, **cascade**. Immutable after creation |
+| `name` | text | |
+| `cron_expression` | text | 5 fields |
+| `timezone` | text | IANA. Defaults `UTC` |
+| `enabled` | boolean | Defaults true |
+| `flags` | jsonb | `pg_dump` flags for each run |
+| `keep_last` | integer | Retention. Null = keep everything |
+
+Schedules **cascade** where jobs set null: a schedule with no database is
+meaningless, but a backup without one is still an artifact you might need.
+
+The row is the source of truth; the BullMQ scheduler keyed by `id` is derived and
+rebuilt on worker boot.
+
+## `restore_jobs`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text | Primary key, UUID |
+| `database_id` | text | The **target**. → `databases.id`, set null |
+| `user_id` | uuid | → `users.id`, set null |
+| `database_name` | text | Denormalized target name |
+| `status` | text | Same four values |
+| `storage_key` | text | The tracked backup's key, or a custom upload's |
+| `flags` | jsonb | |
+| `error` | text | |
+| `started_at` / `completed_at` | timestamp | |
+
+No `size` — a restore consumes an artifact, it doesn't produce one.
+
+## `migration_jobs`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text | Primary key, UUID |
+| `user_id` | uuid | → `users.id`, set null |
+| `source_database_id` / `target_database_id` | text | Null for custom URLs |
+| `source_database_url` / `target_database_url` | text | **Encrypted** |
+| `source_database_name` / `target_database_name` | text | Null for custom URLs |
+| `backup_flags` / `restore_flags` | jsonb | Both sides |
+| `status` | text | |
+| `error` | text | Filtered stderr, truncated at 3,000 chars |
+| `size` | bigint | Bytes streamed from `pg_dump` into `pg_restore` |
+| `started_at` / `completed_at` | timestamp | |
+
+Both URLs are stored encrypted, including custom ones you never saved as
+connections — a migration record shouldn't be a plaintext credential leak.
+
+A migration streams straight from `pg_dump` into `pg_restore` and never lands an
+artifact, so `size` is counted as the bytes cross the pipe rather than measured
+from a file. It records the dump's size, not the space used in the target, and is
+recorded even when the restore side fails.
+
+## `storage_settings`
+
+A **singleton** row with id `default`.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text | Primary key, always `default` |
+| `endpoint` | text | |
+| `region` | text | |
+| `bucket` | text | |
+| `access_key_id` | text | Plaintext — not a secret |
+| `secret_access_key` | text | **Encrypted**. Never returned to the client |
+| `force_path_style` | boolean | Defaults true |
+
+Its presence is what makes the settings page report `source: "settings"` instead of
+`"environment"`. Absent, everything falls back to `STORAGE_*` and then the bundled
+defaults.
+
+## Migration history
+
+| Migration | Change |
+| --- | --- |
+| `0000_breezy_lady_bullseye` | Initial schema |
+| `0001_late_blink` | |
+| `0002_add_storage_key_and_settings` | Added `storage_key` and `storage_settings` — the move to object storage |
+| `0003_drop_backup_path` | Dropped the old filesystem `backup_path` |
+
+`0002`/`0003` are split deliberately: adding the new column and dropping the old
+one in one step makes `drizzle-kit generate` ask whether it's a rename, which it
+can't do in a non-TTY shell. Add first, drop second.
+
+## Conventions
+
+- **`snake_case`** column naming, configured on the Drizzle client
+- **`timestamps`** — `created_at` / `updated_at`, with `updated_at` auto-touched
+- **Encrypted columns** store `iv:authTag:ciphertext`, hex-encoded
+- **Job IDs are `text`**, not `uuid`, because scheduled backups use sanitized BullMQ
+  scheduler IDs
+- **Denormalized names** on job rows, so history survives its subject
+
+## Related
+
+<Cards>
+  <Card title="HTTP API" href="/docs/reference/api" />
+  <Card title="Security" href="/docs/concepts/security" />
+</Cards>
