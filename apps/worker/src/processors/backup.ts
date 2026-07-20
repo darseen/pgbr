@@ -1,5 +1,5 @@
 import { db, backupJobsTable, databasesTable } from "@repo/db";
-import { decrypt } from "@repo/shared";
+import { decrypt, pgConnection } from "@repo/shared";
 import { buildBackupKey, getStore } from "@repo/storage";
 import { backupSchema, type BackupJobPayload } from "@repo/types";
 import type { Job } from "bullmq";
@@ -36,7 +36,7 @@ export async function processBackup(job: Job<BackupJobPayload>) {
     throw new Error("Database not found");
   }
 
-  const storageKey = buildBackupKey(rowId, flags.format);
+  const storageKey = buildBackupKey(rowId, flags.format, flags.compress);
 
   // Idempotent insert: a stalled job re-delivered by BullMQ re-runs this
   // processor; re-inserting the same row id must not crash a retry.
@@ -72,9 +72,10 @@ export async function processBackup(job: Job<BackupJobPayload>) {
       ? path.join(scratchDir, "artifact.tar")
       : dumpTarget;
 
-    const args = buildPgDumpArgs(dumpTarget, flags, decrypt(database.url));
+    const source = pgConnection(decrypt(database.url));
+    const args = buildPgDumpArgs(dumpTarget, flags, source.url);
 
-    const result = await runProcess("pg_dump", args);
+    const result = await runProcess("pg_dump", args, source.env);
 
     if (result.code !== 0) {
       throw new Error(

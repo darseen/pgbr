@@ -1,25 +1,32 @@
 import { db, databasesTable, migrationJobsTable } from "@repo/db";
-import { decrypt, encrypt } from "@repo/shared";
+import { decrypt, encrypt, pgConnection } from "@repo/shared";
 import { migrationSchema, type MigrateJobPayload } from "@repo/types";
 import type { Job } from "bullmq";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { spawn } from "node:child_process";
 import { buildPgDumpArgs, buildPgRestoreArgs } from "../lib/pg-args.js";
 
 type DatabaseData = { url: string; name: string | null; id: string | null };
 
 async function getDbUrl({
+  userId,
   databaseId,
   databaseUrl,
 }: {
+  userId: string;
   databaseId?: string | undefined;
   databaseUrl?: string | undefined;
 }): Promise<DatabaseData | null> {
   if (databaseId && databaseId !== "custom") {
+    // Scoped to the requesting user, as the backup and restore processors are:
+    // resolving by id alone would let one user name another's saved database as
+    // a migration source and copy it into a database they control.
     const [database] = await db
       .select()
       .from(databasesTable)
-      .where(eq(databasesTable.id, databaseId));
+      .where(
+        and(eq(databasesTable.id, databaseId), eq(databasesTable.userId, userId)),
+      );
 
     if (!database) return null;
 
@@ -57,10 +64,12 @@ export async function processMigrate(job: Job<MigrateJobPayload>) {
   }
 
   const sourceDb = await getDbUrl({
+    userId,
     databaseId: result.data.sourceId,
     databaseUrl: result.data.sourceUrl,
   });
   const targetDb = await getDbUrl({
+    userId,
     databaseId: result.data.targetId,
     databaseUrl: result.data.targetUrl,
   });
@@ -90,18 +99,25 @@ export async function processMigrate(job: Job<MigrateJobPayload>) {
   const safeBackupFlags = { ...result.data.backupFlags, format: "custom" as const, jobs: 1 };
   const safeRestoreFlags = { ...result.data.restoreFlags, jobs: 1 };
 
-  const dumpArgs = buildPgDumpArgs(null, safeBackupFlags, sourceDb.url);
-  const restoreArgs = buildPgRestoreArgs("", safeRestoreFlags, targetDb.url).filter(
+  // Passwords move into each child's environment; only host/user/dbname stay in
+  // the argv that the container's process table exposes.
+  const sourceConn = pgConnection(sourceDb.url);
+  const targetConn = pgConnection(targetDb.url);
+
+  const dumpArgs = buildPgDumpArgs(null, safeBackupFlags, sourceConn.url);
+  const restoreArgs = buildPgRestoreArgs("", safeRestoreFlags, targetConn.url).filter(
     (arg) => arg !== "",
   );
 
   return new Promise((resolve, reject) => {
     const dumpProcess = spawn("pg_dump", dumpArgs, {
       stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, ...sourceConn.env },
     });
 
     const restoreProcess = spawn("pg_restore", restoreArgs, {
       stdio: ["pipe", "ignore", "pipe"],
+      env: { ...process.env, ...targetConn.env },
     });
 
     let dumpErrorOutput = "";
@@ -109,6 +125,16 @@ export async function processMigrate(job: Job<MigrateJobPayload>) {
 
     dumpProcess.stderr.on("data", (d) => (dumpErrorOutput += d.toString()));
     restoreProcess.stderr.on("data", (d) => (restoreErrorOutput += d.toString()));
+
+    // A migration streams straight from pg_dump into pg_restore and never lands
+    // an artifact, so there's nothing to stat afterwards. Count the bytes as
+    // they cross the pipe — that's the dump's size, and it's what the dashboard
+    // shows. (Observing 'data' alongside .pipe() is safe: pipe drives the same
+    // flowing mode and both listeners see every chunk.)
+    let bytesStreamed = 0;
+    dumpProcess.stdout.on("data", (chunk: Buffer) => {
+      bytesStreamed += chunk.length;
+    });
 
     dumpProcess.stdout.pipe(restoreProcess.stdin);
 
@@ -170,6 +196,7 @@ export async function processMigrate(job: Job<MigrateJobPayload>) {
             status: finalStatus,
             error: combinedError,
             completedAt: new Date().toISOString(),
+            size: bytesStreamed,
           })
           .where(eq(migrationJobsTable.id, jobId));
 

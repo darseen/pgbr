@@ -1,11 +1,11 @@
 import { db, backupJobsTable, databasesTable, restoreJobsTable } from "@repo/db";
-import { decrypt } from "@repo/shared";
+import { decrypt, pgConnection } from "@repo/shared";
 import { CUSTOM_UPLOADS_PREFIX, getStore } from "@repo/storage";
 import { restoreSchema, type RestoreJobPayload } from "@repo/types";
 import type { Job } from "bullmq";
 import { and, eq } from "drizzle-orm";
 import path from "node:path";
-import { untarToDir } from "../lib/archive.js";
+import { gunzipFile, isGzip, untarToDir } from "../lib/archive.js";
 import { buildPgRestoreArgs } from "../lib/pg-args.js";
 import { cleanupScratch, createScratchDir } from "../lib/paths.js";
 import { runProcess } from "../lib/run-process.js";
@@ -83,31 +83,38 @@ export async function processRestore(job: Job<RestoreJobPayload>) {
     const downloadPath = path.join(scratchDir, path.basename(storageKey));
     await store.downloadToFile(storageKey, downloadPath);
 
+    // A compressed plain dump is gzip on the wire and neither psql nor
+    // pg_restore reads it. Expand it before dispatching on the extension.
+    let artifactPath = downloadPath;
+    if (await isGzip(artifactPath)) {
+      artifactPath = await gunzipFile(artifactPath);
+    }
+
     // Directory-format artifacts are tarballs; expand into a directory that
     // pg_restore -Fd can read. Everything else restores from the file directly.
-    let targetRestorePath = downloadPath;
+    let targetRestorePath = artifactPath;
     if (sourceFormat === "directory") {
       targetRestorePath = await untarToDir(
-        downloadPath,
+        artifactPath,
         path.join(scratchDir, "extract"),
       );
     }
 
-    const dbUrl = decrypt(database.url);
-    const isPlainSql = downloadPath.endsWith(".sql");
+    const target = pgConnection(decrypt(database.url));
+    const isPlainSql = artifactPath.endsWith(".sql");
 
     let command = "pg_restore";
     let args: string[];
     if (isPlainSql) {
       command = "psql";
-      args = ["-d", dbUrl, "-f", targetRestorePath];
+      args = ["-d", target.url, "-f", targetRestorePath];
       if (flags.singleTransaction) args.unshift("-1");
       if (flags.exitOnError) args.unshift("-v", "ON_ERROR_STOP=1");
     } else {
-      args = buildPgRestoreArgs(targetRestorePath, flags, dbUrl);
+      args = buildPgRestoreArgs(targetRestorePath, flags, target.url);
     }
 
-    const result = await runProcess(command, args);
+    const result = await runProcess(command, args, target.env);
 
     if (result.code !== 0) {
       throw new Error(
