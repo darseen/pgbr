@@ -28,6 +28,8 @@ COPY --from=builder /app/out/full/ .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm turbo build --filter=dashboard...
 
+RUN pnpm deploy --filter=@repo/db --prod --legacy /prod/db
+
 FROM base AS runner
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -46,8 +48,7 @@ COPY --from=installer /app/apps/dashboard/.next/standalone ./
 COPY --from=installer /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
 
 COPY --from=installer /app/apps/dashboard/entrypoint.sh ./apps/dashboard/entrypoint.sh
-COPY --from=installer /app/packages/db/dist ./packages/db/dist
-COPY --from=installer /app/packages/db/drizzle ./packages/db/drizzle
+COPY --from=installer /prod/db ./packages/db
 
 RUN chmod +x ./apps/dashboard/entrypoint.sh
 
