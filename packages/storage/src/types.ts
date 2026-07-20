@@ -36,6 +36,8 @@ export interface ObjectStore {
   getObjectStream(key: string): Promise<ObjectStream>;
   /** Delete a single object. */
   deleteObject(key: string): Promise<void>;
+  /** Delete an explicit set of objects — the caller decides what it owns. */
+  deleteObjects(keys: string[]): Promise<void>;
   /** Delete every object under a key prefix (the "wipe everything" flow). */
   deleteByPrefix(prefix: string): Promise<void>;
   /** Whether an object exists — validates a user-supplied artifact reference. */

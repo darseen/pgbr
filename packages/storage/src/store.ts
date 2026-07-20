@@ -109,6 +109,20 @@ export function createStore(config: StorageConfig): ObjectStore {
       await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     },
 
+    async deleteObjects(keys) {
+      // DeleteObjects caps at 1000 keys per request.
+      for (let i = 0; i < keys.length; i += 1000) {
+        const batch = keys.slice(i, i + 1000).map((Key) => ({ Key }));
+        if (batch.length === 0) continue;
+        await client.send(
+          new DeleteObjectsCommand({
+            Bucket: bucket,
+            Delete: { Objects: batch },
+          }),
+        );
+      }
+    },
+
     async deleteByPrefix(prefix) {
       let continuationToken: string | undefined;
       do {

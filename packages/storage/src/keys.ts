@@ -13,8 +13,18 @@ export const artifactExtensionMap: Record<string, string> = {
   tar: "tar",
 };
 
-export function buildBackupKey(rowId: string, format: string): string {
-  const ext = artifactExtensionMap[format] ?? "backup";
+// `plain` is the only format where -Z makes pg_dump emit a raw gzip stream:
+// `custom` and `directory` compress internally and pg_restore reads them as-is,
+// and `tar` rejects compression outright. So a compressed plain dump is a gzip
+// file and the key has to say so — the restore path dispatches on this
+// extension, and calling a gzip ".sql" hands psql a binary blob.
+export function buildBackupKey(
+  rowId: string,
+  format: string,
+  compress = false,
+): string {
+  const base = artifactExtensionMap[format] ?? "backup";
+  const ext = format === "plain" && compress ? `${base}.gz` : base;
   // rowId may be a BullMQ scheduler job id ("repeat:<id>:<ts>"); sanitize so
   // the object key stays clean and portable.
   const safeId = rowId.replace(/[^a-zA-Z0-9._-]/g, "_");
