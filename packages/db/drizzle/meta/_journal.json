@@ -29,6 +29,13 @@
       "when": 1783276482156,
       "tag": "0003_drop_backup_path",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784134288795,
+      "tag": "0004_fine_magneto",
+      "breakpoints": true
     }
   ]
 }

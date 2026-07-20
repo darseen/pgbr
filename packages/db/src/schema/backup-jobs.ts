@@ -1,7 +1,7 @@
 import type { BackupFlags } from "@repo/types";
 import type { InferSelectModel } from "drizzle-orm";
 import { relations } from "drizzle-orm";
-import { integer, pgTable, text, jsonb, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, pgTable, text, jsonb, timestamp, uuid } from "drizzle-orm/pg-core";
 import { timestamps } from "./_utils/shared-columns.js";
 import { usersTable } from "./auth.js";
 import { backupSchedulesTable } from "./backup-schedules.js";
@@ -32,7 +32,9 @@ export const backupJobsTable = pgTable("backup_jobs", {
   storageKey: text().notNull(),
   flags: jsonb().$type<BackupFlags>().notNull(),
   error: text(),
-  size: integer().notNull().default(0),
+  // bigint: artifacts routinely exceed the ~2 GB int4 ceiling. "number" mode is
+  // safe here — 2^53 bytes is 8 PB.
+  size: bigint({ mode: "number" }).notNull().default(0),
   startedAt: timestamp({ mode: 'string' })
     .defaultNow()
     .notNull(),
