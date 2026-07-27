@@ -1,6 +1,6 @@
 ---
 title: Maintenance
-description: Clearing history, wiping data, health checks, and upgrades.
+description: Running the stack day to day, clearing history, wiping data, health checks, and upgrades.
 ---
 
 The **Settings** page holds the destructive operations, plus storage config.
@@ -71,6 +71,39 @@ healthcheck:
 
 The worker has no health endpoint. It's a queue consumer with no HTTP surface;
 monitor it through its logs and through jobs completing.
+
+## Running the stack
+
+Every one of these runs **from your install directory** — the one holding `.env` —
+and takes `-f compose.prod.yaml`:
+
+| Goal | Command |
+| --- | --- |
+| Start it, or apply changes | `docker compose -f compose.prod.yaml up -d` |
+| Pause, keeping containers | `docker compose -f compose.prod.yaml stop` |
+| Resume after a stop | `docker compose -f compose.prod.yaml start` |
+| Stop and remove containers, keeping data | `docker compose -f compose.prod.yaml down` |
+| Restart in place | `docker compose -f compose.prod.yaml restart` |
+| Status | `docker compose -f compose.prod.yaml ps` |
+| Follow logs | `docker compose -f compose.prod.yaml logs -f` |
+
+`stop` and `start` are for a quick pause. `down` followed by `up -d` is what you
+want after editing `.env` or the compose file. Both keep every volume, so neither
+loses data.
+
+<Callout type="error">
+  `down -v` is the exception. The `-v` deletes the volumes — pgbr's metadata
+  database **and every backup artifact** held in the SeaweedFS service. There is
+  no undo, and nothing else on this list destroys anything.
+</Callout>
+
+Two mistakes that don't announce themselves as mistakes:
+
+- Run these from anywhere else and Compose never reads your `.env`, so it fails
+  with `required variable POSTGRES_PASSWORD is missing a value` rather than
+  anything about the directory you're in.
+- Drop the `-f compose.prod.yaml` inside a checkout of the repository and you are
+  driving the **development** `compose.yaml` instead.
 
 ## Upgrades
 
