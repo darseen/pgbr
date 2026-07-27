@@ -11,7 +11,7 @@ description: Every variable pgbr reads, which service reads it, and what happens
 | `REDIS_URL` | Yes | Yes | Defaulted |
 | `ENCRYPTION_KEY` | Yes | Yes | Yes |
 | `AUTH_SECRET` | Yes | — | Recommended |
-| `BASE_URL` | Yes | — | Optional |
+| `BASE_URL` | Yes | — | Yes, unless localhost |
 | `WORKER_CONCURRENCY` | — | Yes | Defaulted |
 | `STORAGE_*` | Yes | Yes | Defaulted |
 
@@ -85,18 +85,24 @@ The public base URL of your instance.
 BASE_URL=https://pgbr.example.com
 ```
 
-Optional — auto-detected from incoming requests when unset. Set it if you're
-behind a reverse proxy that doesn't forward the `Host` header correctly, or if
-auth callbacks resolve to the wrong origin.
+Required for any deployment you don't reach directly on `localhost`. Set it to
+the URL you type in the browser, including the scheme.
+
+Auth builds its set of trusted origins from this value, so leaving it unset means
+sign-in fails with `Invalid origin`. Detection from the incoming request does not
+save you behind a reverse proxy: the proxy's `X-Forwarded-Host` is ignored on this
+path, so what gets trusted is the container's own internal address rather than
+your public URL.
 
 This is a **server-side** variable. The browser always calls auth on the origin it
 loaded the page from, so there's nothing to configure there and no
 `NEXT_PUBLIC_BASE_URL`.
 
-<Callout type="info">
-  Better Auth trusts `http://localhost:3000` and `http://<container-hostname>:3000`
-  regardless. Serving from any other origin generally means setting this — an
-  untrusted origin fails with `INVALID_ORIGIN`.
+<Callout type="warn">
+  `http://localhost:3000` and `http://<container-hostname>:3000` are trusted
+  regardless, which is why a local `docker compose` run works without this. Every
+  other origin — a public domain, a LAN IP, a non-3000 port — needs it set, or
+  auth rejects the request with `INVALID_ORIGIN`.
 </Callout>
 
 ## Worker

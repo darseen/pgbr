@@ -16,6 +16,28 @@ backup shows you what `pg_dump` said. So:
 
 <Accordions>
 
+<Accordion title="Sign-in fails with 'Invalid origin'">
+
+`BASE_URL` isn't set to the URL you're opening in the browser.
+
+Auth derives its trusted origins from `BASE_URL`. With it unset, only
+`http://localhost:3000` and the container's own hostname are trusted, so any
+public domain, LAN IP, or non-3000 port is rejected. Being behind a reverse proxy
+doesn't rescue this — the proxy's `X-Forwarded-Host` isn't consulted here, so
+what gets trusted is the container's internal address, not your public URL.
+
+Set it on the dashboard to exactly the origin you type in the browser, scheme
+included, and restart:
+
+```bash
+BASE_URL=https://pgbr.example.com
+```
+
+The dashboard logs the value it booted with, so its startup output tells you
+whether it picked the variable up.
+
+</Accordion>
+
 <Accordion title="Jobs stay queued and never run">
 
 Nothing is consuming the queue.

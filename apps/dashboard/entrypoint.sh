@@ -12,7 +12,9 @@ else
 fi
 
 if [ -z "${BASE_URL}" ]; then
-  echo ">>> BASE_URL is not set. It will be auto-detected from incoming requests."
+  echo ">>> WARNING: BASE_URL is not set. Sign-in will fail with 'Invalid origin'"
+  echo ">>> unless you reach the dashboard directly on localhost. Set it to the"
+  echo ">>> public URL you open in the browser, e.g. https://pgbr.example.com"
 else
   echo ">>> Using BASE_URL: ${BASE_URL}"
 fi
