@@ -29,7 +29,7 @@ AUTH_SECRET=your-secret-key
 # The URL you open in the browser. Required unless that's localhost.
 BASE_URL=https://pgbr.example.com
 
-# Object store — these defaults target the bundled SeaweedFS.
+# Object store — these defaults target the SeaweedFS service in the Compose file.
 STORAGE_ENDPOINT=http://seaweedfs:8333
 STORAGE_REGION=us-east-1
 STORAGE_BUCKET=pgbr
@@ -269,6 +269,6 @@ configuration:
   <Card
     title="Configure object storage"
     href="/docs/guides/object-storage"
-    description="Move off the bundled store onto S3, R2, or Backblaze."
+    description="Swap the default store for S3, R2, or Backblaze."
   />
 </Cards>

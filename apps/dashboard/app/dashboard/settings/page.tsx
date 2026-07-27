@@ -39,7 +39,7 @@ export default async function Page() {
               </div>
               <CardDescription>
                 S3-compatible object store where backup artifacts live. Defaults
-                to the bundled store; point it at external object storage for
+                to SeaweedFS; point it at any other S3-compatible store for
                 durability and scale.
               </CardDescription>
             </CardHeader>

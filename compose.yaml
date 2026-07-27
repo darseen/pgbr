@@ -121,9 +121,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Bundled S3-compatible object store: the one stateful component that owns
-  # durable artifact storage. Point pgbr at external object storage from the
-  # dashboard settings page for real durability/scale.
   seaweedfs:
     image: chrislusf/seaweedfs:latest
     container_name: seaweedfs

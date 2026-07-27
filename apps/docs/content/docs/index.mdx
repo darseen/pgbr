@@ -54,8 +54,9 @@ The dashboard and worker keep no durable local storage. They stream artifacts to
 and from the object store and use throwaway scratch space only for the duration
 of a job, which means you can run as many workers as you like against one bucket.
 
-A bundled [SeaweedFS](https://github.com/seaweedfs/seaweedfs) store makes a fresh
-install work with zero setup; point pgbr at real object storage (S3, R2,
+The object store is swappable — any S3-compatible one works. The Compose files
+default to a [SeaweedFS](https://github.com/seaweedfs/seaweedfs) service so a fresh
+install works with zero setup; point pgbr at real object storage (S3, R2,
 Backblaze, Wasabi) when you need durability and scale.
 
 <Callout type="info">
@@ -83,7 +84,7 @@ Backblaze, Wasabi) when you need durability and scale.
 - Docker, or Node.js 24+ and pnpm if you are running from source
 - A PostgreSQL database for pgbr's own metadata
 - Redis 8 (earlier versions work; that's what the project tests against)
-- An S3-compatible object store — bundled if you don't have one
+- An S3-compatible object store — the Compose files start SeaweedFS by default
 
 <Callout type="warn">
   pgbr is designed to be run on a private network or behind an authenticating

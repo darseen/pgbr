@@ -16,7 +16,7 @@ const features = [
   {
     title: 'S3-compatible storage',
     description:
-      'Artifacts live in object storage. Bundled SeaweedFS for zero setup; point at S3, R2, or Backblaze when you scale.',
+      'Artifacts live in object storage. SeaweedFS by default for zero setup; point at S3, R2, or Backblaze when you scale.',
   },
   {
     title: 'One-click migrations',

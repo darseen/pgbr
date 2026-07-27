@@ -25,7 +25,7 @@ export default async function updateStorageSettings(input: unknown) {
       .from(storageSettingsTable)
       .where(eq(storageSettingsTable.id, STORAGE_SETTINGS_ID));
 
-    // A blank secret keeps the existing one (or the bundled default on first
+    // A blank secret keeps the existing one (or the env default on first
     // save), so other fields can be edited without re-entering credentials.
     let secretAccessKey: string;
     if (v.secretAccessKey) {

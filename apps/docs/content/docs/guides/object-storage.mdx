@@ -1,16 +1,17 @@
 ---
 title: Configuring Object Storage
-description: Move from the bundled store onto S3, R2, Backblaze, or any S3-compatible provider.
+description: Swap the default store for S3, R2, Backblaze, or any S3-compatible provider.
 ---
 
-pgbr stores every artifact in an S3-compatible object store. Out of the box that's
-a bundled SeaweedFS container, which exists so a fresh install works with zero
-setup.
+pgbr stores every artifact in an S3-compatible object store. Nothing is tied to a
+particular provider — the store is chosen entirely by configuration, and any
+S3-compatible one works. The Compose files default to a SeaweedFS service so a
+fresh install works with zero setup.
 
 <Callout type="error">
-  The bundled store is a **convenience, not a durability strategy**. It's a single
-  container on a single volume with no replication and no versioning. Before you
-  depend on these backups, point pgbr at real object storage.
+  The default SeaweedFS store is a **convenience, not a durability strategy**. It's
+  a single container on a single volume with no replication and no versioning.
+  Before you depend on these backups, point pgbr at real object storage.
 </Callout>
 
 ## Two ways to configure
@@ -52,7 +53,7 @@ stored one while changing another field.
 
 ## Provider settings
 
-<Tabs items={['AWS S3', 'Cloudflare R2', 'Backblaze B2', 'MinIO', 'Bundled SeaweedFS']}>
+<Tabs items={['AWS S3', 'Cloudflare R2', 'Backblaze B2', 'MinIO', 'SeaweedFS (default)']}>
 
 <Tab value="AWS S3">
 
@@ -116,7 +117,7 @@ Self-hosted stores generally need path-style addressing.
 
 </Tab>
 
-<Tab value="Bundled SeaweedFS">
+<Tab value="SeaweedFS (default)">
 
 ```bash
 STORAGE_ENDPOINT=http://seaweedfs:8333
@@ -142,7 +143,7 @@ outside the Docker network.
 - `true` → `https://endpoint/bucket/key` — self-hosted stores (MinIO, SeaweedFS)
 - `false` → `https://bucket.endpoint/key` — hosted providers (S3, R2, B2)
 
-It defaults to `true`, matching the bundled store. **Getting this wrong is the most
+It defaults to `true`, matching the default SeaweedFS store. **Getting this wrong is the most
 common storage misconfiguration**, and it usually surfaces as a DNS or 404 error
 rather than anything mentioning addressing style.
 

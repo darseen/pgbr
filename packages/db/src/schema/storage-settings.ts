@@ -5,7 +5,7 @@ import { timestamps } from "./_utils/shared-columns.js";
 // Singleton row (id = "default") holding the active S3-compatible storage
 // connection. The secret access key is encrypted at rest with the same
 // mechanism used for database connection strings. When no row exists both the
-// dashboard and worker fall back to the bundled SeaweedFS defaults, so a fresh
+// dashboard and worker fall back to the default SeaweedFS settings, so a fresh
 // install works with zero configuration.
 export const STORAGE_SETTINGS_ID = "default";
 

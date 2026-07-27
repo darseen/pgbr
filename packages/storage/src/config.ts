@@ -15,7 +15,7 @@ function envBool(value: string | undefined, fallback: boolean): boolean {
   return value === "true" || value === "1";
 }
 
-// Default object-store connection from environment variables, so the bundled
+// Default object-store connection from environment variables, so the default
 // SeaweedFS store works out of the box. The dashboard settings page can
 // override this by persisting an (encrypted) connection in the database.
 export function getDefaultStorageConfig(): StorageConfig {

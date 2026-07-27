@@ -127,7 +127,8 @@ Any non-numeric value silently falls back to `5`.
 
 ## Storage
 
-All six default to the bundled SeaweedFS, so a fresh install works untouched.
+All six default to the SeaweedFS service the Compose files start, so a fresh
+install works untouched. Point them at any S3-compatible store to swap it out.
 
 <Callout type="warn">
   **A connection saved from the settings page overrides all of these**, silently.
@@ -156,7 +157,7 @@ Default `pgbrsecret`.
 
 <Callout type="error">
   The SeaweedFS defaults are published in this documentation and the repository.
-  They're only safe because the bundled store isn't reachable outside the Docker
+  They're only safe because the default store isn't reachable outside the Docker
   network. Never expose it.
 </Callout>
 

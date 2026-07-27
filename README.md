@@ -28,7 +28,7 @@
 
 ## Getting Started
 
-pgbr runs as stateless **dashboard** (web UI + API) and **worker** (runs `pg_dump`/`pg_restore` jobs from a queue) services backed by three stateful ones: **Postgres** (job metadata), **Redis** (job queue), and an **S3-compatible object store** that owns all backup artifacts. The dashboard and worker keep no durable local storage — they stream artifacts to/from the object store and use only throwaway scratch during a job, so you can run as many workers as you like against one bucket. A bundled **SeaweedFS** store makes a fresh install work with zero setup; point pgbr at external object storage (S3, R2, Backblaze, Wasabi, …) from the settings page for durability and scale. Docker Compose is the easiest way to run everything together.
+pgbr runs as stateless **dashboard** (web UI + API) and **worker** (runs `pg_dump`/`pg_restore` jobs from a queue) services backed by three stateful ones: **Postgres** (job metadata), **Redis** (job queue), and an **S3-compatible object store** that owns all backup artifacts. The dashboard and worker keep no durable local storage — they stream artifacts to/from the object store and use only throwaway scratch during a job, so you can run as many workers as you like against one bucket. The object store is swappable — any S3-compatible one works. **SeaweedFS** is the default so a fresh install works with zero setup; point pgbr at external object storage (S3, R2, Backblaze, Wasabi, …) from the settings page for durability and scale. Docker Compose is the easiest way to run everything together.
 
 ### 1\. Pull the Docker Images
 
@@ -49,7 +49,7 @@ REDIS_URL=redis://redis:6379
 ENCRYPTION_KEY=your-encryption-key
 AUTH_SECRET=your-secret-key
 
-# Object store — defaults target the bundled SeaweedFS.
+# Object store — defaults target the SeaweedFS container below. Any S3-compatible store works.
 STORAGE_ENDPOINT=http://seaweedfs:8333
 STORAGE_REGION=us-east-1
 STORAGE_BUCKET=pgbr
@@ -71,7 +71,7 @@ docker network create pgbr
 
 docker run -d --network pgbr --name redis redis:8-alpine
 
-# Bundled object store — the only component that needs a durable volume.
+# Default object store — the only component that needs a durable volume. Skip it if you bring your own.
 docker run -d --network pgbr \
   -v /path/on/your/machine:/data \
   --name seaweedfs \
@@ -89,7 +89,7 @@ docker run -d --network pgbr \
   ghcr.io/darseen/pgbr-worker:latest
 ```
 
-The dashboard and worker are stateless — no volumes. Only the object store holds durable data. To use external object storage instead of the bundled store, point the `STORAGE_*` values at it (or configure it in the dashboard settings page after first login), and drop the `seaweedfs` container.
+The dashboard and worker are stateless — no volumes. Only the object store holds durable data. To use any other S3-compatible object storage instead of the default SeaweedFS, point the `STORAGE_*` values at it (or configure it in the dashboard settings page after first login), and drop the `seaweedfs` container.
 
 See `compose.yaml` in this repo for a full local development setup (Postgres, Redis, dashboard, and worker wired together).
 
@@ -119,7 +119,7 @@ The following environment variables should be set for optimal security and confi
 
 - `WORKER_CONCURRENCY`: How many jobs each queue (backup/restore/migrate) processes concurrently. Worker only, defaults to `5`.
 
-- `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_FORCE_PATH_STYLE`: The S3-compatible object-store connection, defaulting to the bundled SeaweedFS. Should match on the dashboard and the worker. A connection saved from the dashboard settings page is persisted encrypted in the database and takes precedence over these.
+- `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_FORCE_PATH_STYLE`: The S3-compatible object-store connection, defaulting to SeaweedFS. Should match on the dashboard and the worker. A connection saved from the dashboard settings page is persisted encrypted in the database and takes precedence over these.
 
 ## Screenshots
 
