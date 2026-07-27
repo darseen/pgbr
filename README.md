@@ -30,6 +30,25 @@
 
 pgbr runs as stateless **dashboard** (web UI + API) and **worker** (runs `pg_dump`/`pg_restore` jobs from a queue) services backed by three stateful ones: **Postgres** (job metadata), **Redis** (job queue), and an **S3-compatible object store** that owns all backup artifacts. The dashboard and worker keep no durable local storage — they stream artifacts to/from the object store and use only throwaway scratch during a job, so you can run as many workers as you like against one bucket. The object store is swappable — any S3-compatible one works. **SeaweedFS** is the default so a fresh install works with zero setup; point pgbr at external object storage (S3, R2, Backblaze, Wasabi, …) from the settings page for durability and scale. Docker Compose is the easiest way to run everything together.
 
+### Quick Install
+
+One command sets up everything — it checks Docker, downloads `compose.prod.yaml`, generates every secret into a `.env` file, and starts the stack:
+
+```
+curl -fsSL https://raw.githubusercontent.com/darseen/pgbr/main/scripts/install.sh | sh
+```
+
+The only thing it asks for is the URL you'll open pgbr on. Pass it in to skip the prompt entirely:
+
+```
+curl -fsSL https://raw.githubusercontent.com/darseen/pgbr/main/scripts/install.sh \
+  | BASE_URL=https://pgbr.example.com sh
+```
+
+Re-run it from the same directory to upgrade: it refreshes the compose file, pulls newer images, and never overwrites a value already in your `.env`. Skip to [Initial Setup](#4-initial-setup) once it finishes.
+
+Prefer to read a script before piping it to a shell? Download it first, or follow the manual steps below.
+
 ### 1\. Pull the Docker Images
 
 Bash
@@ -91,7 +110,7 @@ docker run -d --network pgbr \
 
 The dashboard and worker are stateless — no volumes. Only the object store holds durable data. To use any other S3-compatible object storage instead of the default SeaweedFS, point the `STORAGE_*` values at it (or configure it in the dashboard settings page after first login), and drop the `seaweedfs` container.
 
-See `compose.yaml` in this repo for a full local development setup (Postgres, Redis, dashboard, and worker wired together).
+Two Compose files live in this repo: `compose.prod.yaml` is the production stack the quick installer downloads (published images, no secrets in the file, backing services on an internal network), and `compose.yaml` is the local development setup that builds from source with throwaway test databases. Don't deploy `compose.yaml`.
 
 ### 4\. Initial Setup
 

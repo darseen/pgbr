@@ -74,6 +74,18 @@ monitor it through its logs and through jobs completing.
 
 ## Upgrades
 
+If you installed with the [one-liner](/docs/getting-started/installation), re-run
+it **from your install directory** and it does all of this for you — it refreshes
+`compose.prod.yaml`, pulls both images, and restarts in the right order without
+touching a single value in your `.env`. Run it somewhere else and you get a
+second install rather than an upgrade:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/darseen/pgbr/main/scripts/install.sh | sh
+```
+
+By hand:
+
 <Steps>
 <Step>
 ### Pull matching tags
