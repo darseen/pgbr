@@ -1,76 +1,55 @@
 "use client";
 
-import logo from "@/assets/images/pgbr.png";
 import ThemeToggle from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
-import { LogOut } from "lucide-react";
-import Image from "next/image";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { Separator } from "@/components/ui/separator";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { toast } from "sonner";
-
-const navLinks = [
-  { name: "Dashboard", href: "/dashboard" },
-  { name: "Backups", href: "/dashboard/backups" },
-  { name: "Schedules", href: "/dashboard/schedules" },
-  { name: "Migrate", href: "/dashboard/migrate" },
-  { name: "Settings", href: "/dashboard/settings" },
-];
+import { usePathname } from "next/navigation";
+import { findNavItem } from "./nav-config";
 
 export default function Header() {
-  const router = useRouter();
   const pathname = usePathname();
+  const current = findNavItem(pathname);
+  const isRoot = pathname === "/dashboard";
 
   return (
-    <header className="bg-card sticky top-0 z-10 border-b">
-      <div className="container mx-auto flex items-center justify-between px-4 py-4">
-        <div className="flex items-center gap-3">
-          <Link href={"/"} className="flex items-center gap-1">
-            <Image
-              src={logo}
-              alt="pgbr Logo"
-              className="size-8 rounded-lg md:size-12"
-            />
-            <h1 className="text-lg font-bold md:text-2xl">PGBR</h1>
-          </Link>
-        </div>
+    <header className="bg-background/80 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b px-3 backdrop-blur-md sm:px-4">
+      <SidebarTrigger className="-ml-1" />
+      <Separator
+        orientation="vertical"
+        className="mr-1 data-[orientation=vertical]:h-4"
+      />
 
-        <nav className="hidden items-center gap-6 md:flex">
-          {navLinks.map((link) => {
-            const isActive = pathname === link.href;
+      <Breadcrumb>
+        <BreadcrumbList>
+          {!isRoot && (
+            <>
+              <BreadcrumbItem className="hidden sm:block">
+                <BreadcrumbLink asChild>
+                  <Link href="/dashboard">PGBR</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator className="hidden sm:block" />
+            </>
+          )}
+          <BreadcrumbItem>
+            <BreadcrumbPage className="font-medium">
+              {current?.name ?? "Dashboard"}
+            </BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
 
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`text-sm font-medium transition-colors ${
-                  isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {link.name}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={async () => {
-              authClient.signOut();
-              toast.success("Signed out successfully");
-              router.push("/");
-            }}
-          >
-            <LogOut className="size-4" />
-            Sign out
-          </Button>
-
-          <ThemeToggle />
-        </div>
+      <div className="ml-auto flex items-center gap-2">
+        <ThemeToggle />
       </div>
     </header>
   );

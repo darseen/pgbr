@@ -1,10 +1,3 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { auth } from "@/lib/auth";
 import { db } from "@repo/db";
 import {
@@ -19,6 +12,8 @@ import { CalendarClock, CalendarCheck, Timer } from "lucide-react";
 import { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { PageHeader, PageShell } from "../_components/page-shell";
+import StatCard from "../_components/stat-card";
 import SchedulesTable, { type ScheduleWithMeta } from "./_components/table";
 
 export const metadata: Metadata = {
@@ -111,62 +106,46 @@ export default async function SchedulesPage({ searchParams }: Props) {
     .sort()[0];
 
   return (
-    <div className="bg-background animate-in fade-in slide-in-from-bottom-4 min-h-screen duration-500">
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8 grid gap-4 sm:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Total Schedules</CardDescription>
-              <CardTitle className="text-3xl">{schedules.length}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                <CalendarClock className="size-4" />
-                <span>Automatic backup schedules</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Enabled</CardDescription>
-              <CardTitle className="text-3xl">
-                {enabledSchedules.length}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                <CalendarCheck className="size-4" />
-                <span>{schedules.length - enabledSchedules.length} paused</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardDescription>Next Run</CardDescription>
-              <CardTitle className="text-3xl">
-                {soonestNextRun
-                  ? formatDistanceToNow(new Date(soonestNextRun), {
-                      addSuffix: true,
-                    })
-                  : "—"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                <Timer className="size-4" />
-                <span>Across enabled schedules</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+    <PageShell>
+      <PageHeader
+        title="Schedules"
+        description="Recurring backups that run without you"
+      />
 
-        <SchedulesTable
-          schedules={schedules}
-          databases={databases}
-          initialCreateOpen={params.new === "1"}
-          initialDatabaseId={params.databaseId ?? null}
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          label="Total Schedules"
+          value={schedules.length}
+          hint="Automatic backup schedules"
+          icon={CalendarClock}
         />
-      </main>
-    </div>
+        <StatCard
+          label="Enabled"
+          value={enabledSchedules.length}
+          hint={`${schedules.length - enabledSchedules.length} paused`}
+          icon={CalendarCheck}
+        />
+        <StatCard
+          label="Next Run"
+          value={
+            soonestNextRun
+              ? formatDistanceToNow(new Date(soonestNextRun), {
+                  addSuffix: true,
+                })
+              : "—"
+          }
+          hint="Across enabled schedules"
+          icon={Timer}
+          className="sm:col-span-2 lg:col-span-1"
+        />
+      </div>
+
+      <SchedulesTable
+        schedules={schedules}
+        databases={databases}
+        initialCreateOpen={params.new === "1"}
+        initialDatabaseId={params.databaseId ?? null}
+      />
+    </PageShell>
   );
 }

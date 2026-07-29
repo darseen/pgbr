@@ -12,6 +12,7 @@ import { desc, eq } from "drizzle-orm";
 import { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { PageShell } from "./_components/page-shell";
 import DatabasesList from "./_components/sections/databases-list";
 import JobHistory from "./_components/sections/job-history";
 
@@ -52,8 +53,8 @@ export default async function Page() {
   );
 
   return (
-    <main className="animate-in fade-in slide-in-from-bottom-4 container mx-auto flex-1 px-4 py-8 duration-500">
-      <div className="grid items-start gap-8 lg:grid-cols-[1fr_400px]">
+    <PageShell>
+      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-8">
         <DatabasesList
           backupJobs={backupJobs}
           databases={databases.map((db) => ({
@@ -67,6 +68,6 @@ export default async function Page() {
           migrationJobs={migrationJobs}
         />
       </div>
-    </main>
+    </PageShell>
   );
 }

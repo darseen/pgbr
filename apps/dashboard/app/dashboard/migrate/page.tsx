@@ -28,8 +28,8 @@ export default async function Page() {
     .where(eq(databasesTable.userId, session.user.id));
 
   return (
-    <main className="bg-muted/30 min-h-screen pb-12">
+    <div className="bg-muted/30 animate-in fade-in slide-in-from-bottom-2 flex-1 pb-12 duration-500">
       <Stepper databases={databases} />
-    </main>
+    </div>
   );
 }

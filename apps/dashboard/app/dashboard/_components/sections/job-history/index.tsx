@@ -27,7 +27,7 @@ export default function JobHistory({
   const hasJobs = backupJobs.length > 0 || restoreJobs.length > 0;
 
   return (
-    <section className="sticky top-8 w-full">
+    <section className="w-full min-w-0 xl:sticky xl:top-20">
       {!hasJobs ? (
         <Card className="w-full">
           <CardHeader>
@@ -75,7 +75,7 @@ export default function JobHistory({
               </TabsList>
 
               <TabsContent value="backups" className="mt-0">
-                <ScrollArea className="h-100 pr-4 lg:h-[calc(100vh-20rem)]">
+                <ScrollArea className="h-100 pr-4 xl:h-[calc(100svh-22rem)]">
                   <div className="space-y-3">
                     {backupJobs.length > 0 ? (
                       backupJobs.map((job) => (
@@ -91,7 +91,7 @@ export default function JobHistory({
               </TabsContent>
 
               <TabsContent value="restores" className="mt-0">
-                <ScrollArea className="h-100 pr-4 lg:h-[calc(100vh-20rem)]">
+                <ScrollArea className="h-100 pr-4 xl:h-[calc(100svh-22rem)]">
                   <div className="space-y-3">
                     {restoreJobs.length > 0 ? (
                       restoreJobs.map((job) => (
@@ -107,7 +107,7 @@ export default function JobHistory({
               </TabsContent>
 
               <TabsContent value="migrations" className="mt-0">
-                <ScrollArea className="h-100 pr-4 lg:h-[calc(100vh-20rem)]">
+                <ScrollArea className="h-100 pr-4 xl:h-[calc(100svh-22rem)]">
                   <div className="space-y-3">
                     {migrationJobs.length > 0 ? (
                       migrationJobs.map((job) => (

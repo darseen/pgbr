@@ -7,7 +7,9 @@ import {
 } from "@/components/ui/card";
 import { AlertTriangle, Bomb, HardDrive, Trash2 } from "lucide-react";
 import { Metadata } from "next";
+import { ReactNode } from "react";
 import getStorageStatus from "@/actions/settings/storage/status";
+import { PageHeader, PageShell } from "../_components/page-shell";
 import ClearMigrationsDialog from "./_components/clear-migrations-dialog";
 import ClearRestoresDialog from "./_components/clear-restores-dialog";
 import NukeDialog from "./_components/nuke-dialog";
@@ -21,111 +23,102 @@ export default async function Page() {
   const { data: storageStatus } = await getStorageStatus();
 
   return (
-    <div className="bg-background animate-in fade-in slide-in-from-bottom-4 min-h-screen duration-500">
-      <main className="container mx-auto max-w-2xl px-4 py-8">
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold">Settings</h1>
-            <p className="text-muted-foreground">
-              Manage application settings and data
-            </p>
-          </div>
+    <PageShell width="narrow">
+      <PageHeader
+        title="Settings"
+        description="Manage application settings and data"
+      />
 
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <HardDrive className="size-5" />
-                <CardTitle>Storage</CardTitle>
-              </div>
-              <CardDescription>
-                S3-compatible object store where backup artifacts live. Defaults
-                to SeaweedFS; point it at any other S3-compatible store for
-                durability and scale.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {storageStatus ? (
-                <StorageSection status={storageStatus} />
-              ) : (
-                <p className="text-muted-foreground text-sm">
-                  Unable to load storage status.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <HardDrive className="text-muted-foreground size-5" />
+              <CardTitle>Storage</CardTitle>
+            </div>
+            <CardDescription>
+              S3-compatible object store where backup artifacts live. Defaults
+              to SeaweedFS; point it at any other S3-compatible store for
+              durability and scale.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {storageStatus ? (
+              <StorageSection status={storageStatus} />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                Unable to load storage status.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-          <Card className="border-destructive/50">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="text-destructive size-5" />
-                <CardTitle className="text-destructive">Danger Zone</CardTitle>
-              </div>
-              <CardDescription>
-                Irreversible actions that affect your data
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="border-destructive/30 bg-destructive/5 rounded-lg border p-4">
-                <div className="flex items-start gap-4">
-                  <div className="bg-destructive/10 rounded-full p-3">
-                    <Trash2 className="text-destructive size-6" />
-                  </div>
-                  <div className="flex-1 space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">
-                        Clear Migration Logs
-                      </h3>
-                      <p className="text-muted-foreground mt-1 text-sm">
-                        Permanently delete all migration job history and logs.
-                        This action cannot be undone.
-                      </p>
-                    </div>
-                    <ClearMigrationsDialog />
-                  </div>
-                </div>
-              </div>
-              <div className="border-destructive/30 bg-destructive/5 rounded-lg border p-4">
-                <div className="flex items-start gap-4">
-                  <div className="bg-destructive/10 rounded-full p-3">
-                    <Trash2 className="text-destructive size-6" />
-                  </div>
-                  <div className="flex-1 space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">
-                        Clear Restore Logs
-                      </h3>
-                      <p className="text-muted-foreground mt-1 text-sm">
-                        Permanently delete all restore job history and logs.
-                        This action cannot be undone, but your actual backup
-                        files will remain intact.
-                      </p>
-                    </div>
-                    <ClearRestoresDialog />
-                  </div>
-                </div>
-              </div>
+        <Card className="ring-destructive/30">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="text-destructive size-5" />
+              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+            </div>
+            <CardDescription>
+              Irreversible actions that affect your data
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <DangerRow
+              icon={<Trash2 className="text-destructive size-5" />}
+              title="Clear Migration Logs"
+              description="Permanently delete all migration job history and logs. This action cannot be undone."
+            >
+              <ClearMigrationsDialog />
+            </DangerRow>
 
-              <div className="border-destructive/30 bg-destructive/5 rounded-lg border p-4">
-                <div className="flex items-start gap-4">
-                  <div className="bg-destructive/10 rounded-full p-3">
-                    <Bomb className="text-destructive size-6" />
-                  </div>
-                  <div className="flex-1 space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">Nuke Everything</h3>
-                      <p className="text-muted-foreground mt-1 text-sm">
-                        Permanently delete all database records and backup files
-                        from disk. This action cannot be undone.
-                      </p>
-                    </div>
-                    <NukeDialog />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            <DangerRow
+              icon={<Trash2 className="text-destructive size-5" />}
+              title="Clear Restore Logs"
+              description="Permanently delete all restore job history and logs. This action cannot be undone, but your actual backup files will remain intact."
+            >
+              <ClearRestoresDialog />
+            </DangerRow>
+
+            <DangerRow
+              icon={<Bomb className="text-destructive size-5" />}
+              title="Nuke Everything"
+              description="Permanently delete all database records and backup files from disk. This action cannot be undone."
+            >
+              <NukeDialog />
+            </DangerRow>
+          </CardContent>
+        </Card>
+      </div>
+    </PageShell>
+  );
+}
+
+function DangerRow({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border-destructive/30 bg-destructive/5 rounded-lg border p-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="bg-destructive/10 flex size-10 shrink-0 items-center justify-center rounded-full">
+          {icon}
         </div>
-      </main>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="space-y-1">
+            <h3 className="font-semibold">{title}</h3>
+            <p className="text-muted-foreground text-sm">{description}</p>
+          </div>
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

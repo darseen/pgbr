@@ -71,7 +71,7 @@ export default function DatabaseCard({
   return (
     <Card
       key={database.id}
-      className="hover:border-primary flex flex-col overflow-hidden border transition-all hover:scale-[1.01] hover:shadow-sm"
+      className="hover:ring-primary/40 flex flex-col overflow-hidden transition-shadow hover:shadow-md"
     >
       <CardHeader className="border-border/40 bg-muted/10 border-b pb-4">
         <div className="flex items-start justify-between gap-4">
