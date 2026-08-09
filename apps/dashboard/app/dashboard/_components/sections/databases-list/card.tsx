@@ -47,6 +47,10 @@ export default function DatabaseCard({
     "idle" | "loading" | "success" | "error"
   >("idle");
 
+  const backupCount = backupJobs.filter(
+    (j) => j.databaseId === database.id && j.status === "completed",
+  ).length;
+
   const handlePing = async () => {
     setPingStatus("loading");
 
@@ -150,8 +154,7 @@ export default function DatabaseCard({
             className="text-muted-foreground gap-1.5 text-xs font-normal"
           >
             <History className="size-3" />
-            {database.backupCount}{" "}
-            {database.backupCount === 1 ? "Backup" : "Backups"}
+            {backupCount} {backupCount === 1 ? "Backup" : "Backups"}
           </Badge>
         </div>
       </CardContent>

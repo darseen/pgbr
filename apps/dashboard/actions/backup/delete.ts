@@ -5,6 +5,7 @@ import { db } from "@repo/db";
 import { backupJobsTable } from "@repo/db/schema";
 import { getStore } from "@repo/storage";
 import { and, eq, inArray } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
 export default async function deleteBackupJobs(ids: string[]) {
@@ -52,6 +53,9 @@ export default async function deleteBackupJobs(ids: string[]) {
         ),
       );
     }
+
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/backups");
 
     return { data: { backupJobsIds }, error: null };
   } catch (error) {

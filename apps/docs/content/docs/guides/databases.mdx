@@ -92,9 +92,12 @@ To delete artifacts too, delete the backups from the Backups page first — or u
 
 ## Backup counter
 
-Each database tracks a **lifetime** count of successful backups. It only ever
-increments — deleting backups or pruning through retention doesn't decrease it.
-It reflects how many backups have ever succeeded, not how many exist now.
+The **Backups** badge on a database card shows how many completed backups
+currently exist for that database. Deleting a backup or pruning through
+retention lowers it.
+
+Separately, the `backup_count` column stores a **lifetime** tally of successful
+backups. It only ever increments and is not what the badge displays.
 
 ## Related
 
