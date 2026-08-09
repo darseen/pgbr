@@ -1,10 +1,9 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getBackupQueue } from "@/lib/queue";
 import { db } from "@repo/db";
 import { backupSchedulesTable } from "@repo/db/schema";
-import { buildScheduleTemplate } from "@repo/shared";
+import { nextOccurrence } from "@repo/queue";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -19,28 +18,32 @@ export default async function toggleSchedule(id: string, enabled: boolean) {
   }
 
   try {
-    const [schedule] = await db
-      .update(backupSchedulesTable)
-      .set({ enabled })
+    const [existing] = await db
+      .select()
+      .from(backupSchedulesTable)
       .where(
         and(
           eq(backupSchedulesTable.id, id),
           eq(backupSchedulesTable.userId, userId),
         ),
-      )
-      .returning();
+      );
 
-    if (!schedule) {
+    if (!existing) {
       return { data: null, error: { message: "Schedule not found" } };
     }
 
-    if (schedule.enabled) {
-      await getBackupQueue().upsertJobScheduler(
-        ...buildScheduleTemplate(schedule),
-      );
-    } else {
-      await getBackupQueue().removeJobScheduler(schedule.id);
-    }
+    // Clearing next_run_at is what stops a schedule; setting it is what starts
+    // one. Nothing else needs telling.
+    const [schedule] = await db
+      .update(backupSchedulesTable)
+      .set({
+        enabled,
+        nextRunAt: enabled
+          ? nextOccurrence(existing.cronExpression, existing.timezone)
+          : null,
+      })
+      .where(eq(backupSchedulesTable.id, id))
+      .returning();
 
     revalidatePath("/dashboard/schedules");
     return { data: { schedule }, error: null };

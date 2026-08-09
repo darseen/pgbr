@@ -24,8 +24,8 @@ Liveness. No authentication.
 { "status": "ok" }
 ```
 
-Unconditional — it doesn't check Postgres, Redis, or storage. A dashboard with a
-dead Redis still returns `ok`.
+Unconditional — it doesn't check Postgres or storage. A dashboard whose database
+is unreachable still returns `ok`.
 
 ### `GET /api/events`
 

@@ -1,6 +1,7 @@
+// A job's id is the queue row's id, which is also its history row's id, so no
+// payload carries one.
+
 export interface BackupJobPayload {
-  /** Present for user-triggered runs (SSE correlation); absent for scheduled runs. */
-  jobId?: string;
   userId: string;
   databaseId: string;
   /** Present when the job was produced by a backup schedule. */
@@ -9,7 +10,6 @@ export interface BackupJobPayload {
 }
 
 export interface RestoreJobPayload {
-  jobId: string;
   userId: string;
   databaseId: string;
   /** Restore from a tracked backup job. */
@@ -20,7 +20,6 @@ export interface RestoreJobPayload {
 }
 
 export interface MigrateJobPayload {
-  jobId: string;
   userId: string;
   sourceId?: string;
   targetId?: string;

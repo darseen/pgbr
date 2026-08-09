@@ -46,8 +46,7 @@ pgbr runs as two stateless services backed by three stateful ones:
 | --- | --- | --- |
 | **Dashboard** | Next.js web UI and API. Enqueues jobs, brokers downloads. | No |
 | **Worker** | Consumes the queue and runs `pg_dump` / `pg_restore`. | No |
-| **Postgres** | pgbr's own metadata: users, connections, job history, schedules. | Yes |
-| **Redis** | The job queue (BullMQ) and cron scheduler state. | Yes |
+| **Postgres** | pgbr's own metadata: users, connections, job history, schedules, and the job queue. | Yes |
 | **Object store** | Every backup artifact. S3-compatible. | Yes |
 
 The dashboard and worker keep no durable local storage. They stream artifacts to
@@ -82,8 +81,7 @@ Backblaze, Wasabi) when you need durability and scale.
 ## Requirements
 
 - Docker, or Node.js 24+ and pnpm if you are running from source
-- A PostgreSQL database for pgbr's own metadata
-- Redis 8 (earlier versions work; that's what the project tests against)
+- A PostgreSQL database for pgbr's own metadata and job queue
 - An S3-compatible object store — the Compose files start SeaweedFS by default
 
 <Callout type="warn">

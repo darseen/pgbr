@@ -12,9 +12,8 @@ makes both safe to scale and restart.
 ```mermaid
 flowchart LR
     Browser -->|HTTP + SSE| Dashboard
-    Dashboard -->|enqueue| Redis[(Redis<br/>BullMQ queues)]
-    Redis -->|consume| Worker
-    Dashboard -->|metadata| Postgres[(Postgres<br/>pgbr metadata)]
+    Dashboard -->|enqueue + metadata| Postgres[(Postgres<br/>metadata + job queue)]
+    Postgres -->|claim / LISTEN| Worker
     Worker -->|metadata| Postgres
     Worker -->|pg_dump / pg_restore| Targets[(Your PostgreSQL<br/>databases)]
     Worker -->|artifacts| Store[(S3-compatible<br/>object store)]
@@ -29,9 +28,9 @@ it touches PostgreSQL directly is **Ping**, which shells out to `pg_isready`.
 
 ### Worker
 
-A Node process consuming three BullMQ queues. It spawns `pg_dump`, `pg_restore`,
-and `psql` as child processes, streams the result to object storage, and records
-the outcome in Postgres.
+A Node process polling three queues in Postgres. It spawns `pg_dump`,
+`pg_restore`, and `psql` as child processes, streams the result to object
+storage, and records the outcome in Postgres.
 
 ## Who owns what state
 
@@ -40,14 +39,15 @@ This is the design rule that explains most of pgbr's behaviour:
 | State | Owner | Notes |
 | --- | --- | --- |
 | Users, connections, job history, schedules | **Postgres** | The source of truth. |
-| Queued jobs, cron schedulers | **Redis** | Derived state — rebuildable. |
+| Queued jobs, schedule timings | **Postgres** | Same database, same transactions. |
 | Backup artifacts | **Object store** | The only irreplaceable data. |
 | Scratch files during a job | Worker's `tmpdir` | Throwaway, deleted in a `finally`. |
 
-Redis being *derived* is deliberate. Schedules live in Postgres; the BullMQ job
-schedulers in Redis are a projection of them. Every worker reconciles that
-projection on boot, so a flushed Redis heals itself rather than silently dropping
-your schedules.
+Putting the queue in Postgres is what removes a whole class of failure. Enqueueing
+happens in the same transaction as the write it belongs to, so a schedule can't
+exist without its next run time, and a job can't be queued against a row that
+was never committed. There is no second store to drift from, and nothing to
+reconcile on boot.
 
 <Callout type="info">
   Only the object store and Postgres need durable volumes. The dashboard and
@@ -140,13 +140,14 @@ triggered them.
 
 ## Failure behaviour
 
-- **A worker dies mid-job** — BullMQ's stalled-job detection expires the lock and
-  another worker reprocesses it. Because processors upsert idempotently, the
-  re-delivery converges rather than orphaning a `running` row.
+- **A worker dies mid-job** — its heartbeat goes stale and the reaper requeues the
+  job within 90 seconds. Because processors upsert idempotently, the re-delivery
+  converges rather than orphaning a `running` row. A job that stalls twice is
+  failed for good and its history row closed out.
 - **A dump fails** — the row is marked `failed` with `pg_dump`'s stderr, and the
-  job throws so BullMQ records it.
-- **Redis is flushed** — schedules are re-registered from Postgres on the next
-  worker boot.
+  job throws so the queue records it.
+- **Postgres restarts** — queued jobs are rows, so they are still there. Workers
+  reconnect and resume claiming.
 - **The object store is unreachable** — backups fail at upload and are recorded as
   failed. The dump itself is discarded with the scratch directory.
 

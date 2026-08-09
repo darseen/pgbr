@@ -1,10 +1,9 @@
 import { db, backupJobsTable, databasesTable } from "@repo/db";
+import type { JobContext } from "@repo/queue";
 import { decrypt, pgConnection } from "@repo/shared";
 import { buildBackupKey, getStore } from "@repo/storage";
 import { backupSchema, type BackupJobPayload } from "@repo/types";
-import type { Job } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { tarDirectory } from "../lib/archive.js";
 import { buildPgDumpArgs } from "../lib/pg-args.js";
@@ -12,14 +11,13 @@ import { cleanupScratch, createScratchDir } from "../lib/paths.js";
 import { pruneScheduleBackups } from "../lib/retention.js";
 import { runProcess } from "../lib/run-process.js";
 
-export async function processBackup(job: Job<BackupJobPayload>) {
-  const { jobId, userId, databaseId, scheduleId, flags: rawFlags } = job.data;
+export async function processBackup(job: JobContext<BackupJobPayload>) {
+  const { userId, databaseId, scheduleId, flags: rawFlags } = job.data;
 
-  // User-triggered jobs carry a dashboard-generated UUID. Scheduled jobs don't,
-  // so fall back to the BullMQ job id: it's stable across a stalled-job
-  // re-delivery, which keeps the idempotent upsert below from orphaning a
-  // "running" row when a worker crashes and another reprocesses the job.
-  const rowId = jobId ?? job.id ?? randomUUID();
+  // The queue row's id is the history row's id, and it's stable across a
+  // re-delivery — which keeps the idempotent upsert below from orphaning a
+  // "running" row when a worker dies and another picks the job up.
+  const rowId = job.id;
 
   const flagResult = backupSchema.safeParse(rawFlags);
   if (!flagResult.success) {
@@ -38,8 +36,8 @@ export async function processBackup(job: Job<BackupJobPayload>) {
 
   const storageKey = buildBackupKey(rowId, flags.format, flags.compress);
 
-  // Idempotent insert: a stalled job re-delivered by BullMQ re-runs this
-  // processor; re-inserting the same row id must not crash a retry.
+  // Idempotent insert: a requeued job re-runs this processor, so re-inserting
+  // the same row id must not crash a retry.
   const [backupJob] = await db
     .insert(backupJobsTable)
     .values({
@@ -58,7 +56,7 @@ export async function processBackup(job: Job<BackupJobPayload>) {
     })
     .returning();
 
-  await job.updateProgress(backupJob!);
+  await job.reportProgress(backupJob!);
 
   const scratchDir = await createScratchDir("pgbr-backup-");
   try {

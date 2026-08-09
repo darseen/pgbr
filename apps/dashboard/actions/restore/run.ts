@@ -1,9 +1,9 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getRestoreQueue } from "@/lib/queue";
 import { db } from "@repo/db";
 import { databasesTable } from "@repo/db/schema";
+import { enqueue, QUEUE_NAMES } from "@repo/queue";
 import { restoreSchema, type RestoreJobPayload } from "@repo/types";
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -58,7 +58,6 @@ export default async function runRestore(input: {
 
     const jobId = randomUUID();
     const payload: RestoreJobPayload = {
-      jobId,
       userId,
       databaseId: input.databaseId,
       backupJobId: input.backupJobId,
@@ -66,7 +65,12 @@ export default async function runRestore(input: {
       flags: flagResult.data,
     };
 
-    await getRestoreQueue().add("restore", payload, { jobId });
+    await enqueue(db, {
+      id: jobId,
+      queue: QUEUE_NAMES.restore,
+      userId,
+      payload,
+    });
 
     return { data: { jobId }, error: null };
   } catch (error) {

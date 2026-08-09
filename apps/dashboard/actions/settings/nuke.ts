@@ -1,7 +1,6 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getBackupQueue } from "@/lib/queue";
 import { db } from "@repo/db";
 import {
   backupJobsTable,
@@ -10,6 +9,7 @@ import {
   migrationJobsTable,
   restoreJobsTable,
 } from "@repo/db/schema";
+import { cancelPendingForUser } from "@repo/queue";
 import { getStore } from "@repo/storage";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -25,11 +25,7 @@ export default async function nuke() {
   try {
     // Everything below is scoped to the caller, matching clearRestores and
     // clearMigrations. Nuke wipes *your* data, not the instance's.
-    const [ownedSchedules, ownedBackups, ownedRestores] = await Promise.all([
-      db
-        .select({ id: backupSchedulesTable.id })
-        .from(backupSchedulesTable)
-        .where(eq(backupSchedulesTable.userId, userId)),
+    const [ownedBackups, ownedRestores] = await Promise.all([
       db
         .select({ storageKey: backupJobsTable.storageKey })
         .from(backupJobsTable)
@@ -51,6 +47,10 @@ export default async function nuke() {
     ];
 
     await db.transaction(async (tx) => {
+      // Queued-but-unstarted work goes too, so nuke doesn't leave a backup to
+      // fire against rows that no longer exist. Another user's jobs are
+      // untouched, and anything already running is left to finish.
+      await cancelPendingForUser(tx, userId);
       await tx
         .delete(backupSchedulesTable)
         .where(eq(backupSchedulesTable.userId, userId));
@@ -63,13 +63,6 @@ export default async function nuke() {
         .delete(migrationJobsTable)
         .where(eq(migrationJobsTable.userId, userId));
     });
-
-    // Only the schedulers derived from the schedules just deleted; another
-    // user's repeat jobs must keep running.
-    const queue = getBackupQueue();
-    for (const schedule of ownedSchedules) {
-      await queue.removeJobScheduler(schedule.id);
-    }
 
     // Storage settings are intentionally preserved; only artifacts are removed.
     const store = await getStore();

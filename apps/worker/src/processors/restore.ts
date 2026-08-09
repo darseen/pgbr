@@ -1,8 +1,8 @@
 import { db, backupJobsTable, databasesTable, restoreJobsTable } from "@repo/db";
+import type { JobContext } from "@repo/queue";
 import { decrypt, pgConnection } from "@repo/shared";
 import { CUSTOM_UPLOADS_PREFIX, getStore } from "@repo/storage";
 import { restoreSchema, type RestoreJobPayload } from "@repo/types";
-import type { Job } from "bullmq";
 import { and, eq } from "drizzle-orm";
 import path from "node:path";
 import { gunzipFile, isGzip, untarToDir } from "../lib/archive.js";
@@ -10,9 +10,10 @@ import { buildPgRestoreArgs } from "../lib/pg-args.js";
 import { cleanupScratch, createScratchDir } from "../lib/paths.js";
 import { runProcess } from "../lib/run-process.js";
 
-export async function processRestore(job: Job<RestoreJobPayload>) {
-  const { jobId, userId, databaseId, backupJobId, customKey, flags: rawFlags } =
+export async function processRestore(job: JobContext<RestoreJobPayload>) {
+  const { userId, databaseId, backupJobId, customKey, flags: rawFlags } =
     job.data;
+  const jobId = job.id;
 
   if (!backupJobId && !customKey) {
     throw new Error("A tracked backup or a custom source is required");
@@ -76,7 +77,7 @@ export async function processRestore(job: Job<RestoreJobPayload>) {
     })
     .returning();
 
-  await job.updateProgress(restoreJob!);
+  await job.reportProgress(restoreJob!);
 
   const scratchDir = await createScratchDir("pgbr-restore-");
   try {

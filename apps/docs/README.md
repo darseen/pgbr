@@ -15,8 +15,8 @@ pnpm --filter docs dev
 Then open http://localhost:3001. The port is pinned to 3001 so the docs and the
 pgbr dashboard (3000) can run side by side.
 
-This app is self-contained: unlike the other workspace apps it needs no database,
-Redis, or object storage, and no environment variables.
+This app is self-contained: unlike the other workspace apps it needs no database
+or object storage, and no environment variables.
 
 ## Writing content
 

@@ -25,8 +25,8 @@ export function buildBackupKey(
 ): string {
   const base = artifactExtensionMap[format] ?? "backup";
   const ext = format === "plain" && compress ? `${base}.gz` : base;
-  // rowId may be a BullMQ scheduler job id ("repeat:<id>:<ts>"); sanitize so
-  // the object key stays clean and portable.
+  // Job ids are UUIDs, but keys outlive whatever generated them — sanitize so
+  // an id that isn't one can't produce an unportable object key.
   const safeId = rowId.replace(/[^a-zA-Z0-9._-]/g, "_");
   return `${BACKUPS_PREFIX}${safeId}.${ext}`;
 }

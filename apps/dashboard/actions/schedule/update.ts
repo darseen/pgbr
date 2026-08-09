@@ -1,11 +1,10 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getBackupQueue } from "@/lib/queue";
 import { scheduleSchema, splitScheduleInput } from "@/lib/zod/schedule";
 import { db } from "@repo/db";
 import { backupSchedulesTable } from "@repo/db/schema";
-import { buildScheduleTemplate } from "@repo/shared";
+import { nextOccurrence } from "@repo/queue";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -48,21 +47,19 @@ export default async function updateSchedule(id: string, input: unknown) {
       };
     }
 
+    // Recomputing next_run_at in the same statement means a pattern or timezone
+    // edit propagates to the next run with no second write to keep in step.
     const [schedule] = await db
       .update(backupSchedulesTable)
-      .set({ ...scheduleFields, flags })
+      .set({
+        ...scheduleFields,
+        flags,
+        nextRunAt: scheduleFields.enabled
+          ? nextOccurrence(scheduleFields.cronExpression, scheduleFields.timezone)
+          : null,
+      })
       .where(eq(backupSchedulesTable.id, id))
       .returning();
-
-    // Upserting with the same schedulerId atomically replaces pattern, tz,
-    // and the job template, so flag edits propagate to future runs.
-    if (schedule!.enabled) {
-      await getBackupQueue().upsertJobScheduler(
-        ...buildScheduleTemplate(schedule!),
-      );
-    } else {
-      await getBackupQueue().removeJobScheduler(schedule!.id);
-    }
 
     revalidatePath("/dashboard/schedules");
     return { data: { schedule }, error: null };

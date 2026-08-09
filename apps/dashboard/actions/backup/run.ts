@@ -1,9 +1,9 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getBackupQueue } from "@/lib/queue";
 import { db } from "@repo/db";
 import { databasesTable } from "@repo/db/schema";
+import { enqueue, QUEUE_NAMES } from "@repo/queue";
 import { backupSchema, type BackupJobPayload } from "@repo/types";
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -48,13 +48,17 @@ export default async function runBackup(input: {
 
     const jobId = randomUUID();
     const payload: BackupJobPayload = {
-      jobId,
       userId,
       databaseId: input.databaseId,
       flags: flagResult.data,
     };
 
-    await getBackupQueue().add("backup", payload, { jobId });
+    await enqueue(db, {
+      id: jobId,
+      queue: QUEUE_NAMES.backup,
+      userId,
+      payload,
+    });
 
     return { data: { jobId }, error: null };
   } catch (error) {

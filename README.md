@@ -28,7 +28,7 @@
 
 ## Getting Started
 
-pgbr runs as stateless **dashboard** (web UI + API) and **worker** (runs `pg_dump`/`pg_restore` jobs from a queue) services backed by three stateful ones: **Postgres** (job metadata), **Redis** (job queue), and an **S3-compatible object store** that owns all backup artifacts. The dashboard and worker keep no durable local storage — they stream artifacts to/from the object store and use only throwaway scratch during a job, so you can run as many workers as you like against one bucket. The object store is swappable — any S3-compatible one works. **SeaweedFS** is the default so a fresh install works with zero setup; point pgbr at external object storage (S3, R2, Backblaze, Wasabi, …) from the settings page for durability and scale. Docker Compose is the easiest way to run everything together.
+pgbr runs as stateless **dashboard** (web UI + API) and **worker** (runs `pg_dump`/`pg_restore` jobs from a queue) services backed by two stateful ones: **Postgres** (job metadata *and* the job queue) and an **S3-compatible object store** that owns all backup artifacts. The dashboard and worker keep no durable local storage — they stream artifacts to/from the object store and use only throwaway scratch during a job, so you can run as many workers as you like against one bucket. The object store is swappable — any S3-compatible one works. **SeaweedFS** is the default so a fresh install works with zero setup; point pgbr at external object storage (S3, R2, Backblaze, Wasabi, …) from the settings page for durability and scale. Docker Compose is the easiest way to run everything together.
 
 ### Quick Install
 
@@ -60,11 +60,10 @@ docker pull ghcr.io/darseen/pgbr-worker:latest
 
 ### 2\. Configure Your Environment
 
-The dashboard and the worker share `DATABASE_URL`, `REDIS_URL`, `ENCRYPTION_KEY` (used to decrypt connection strings and stored storage credentials), and the `STORAGE_*` object-store connection. Put the shared values in one `.env` file and pass it to both containers so you don't have to keep two copies in sync:
+The dashboard and the worker share `DATABASE_URL`, `ENCRYPTION_KEY` (used to decrypt connection strings and stored storage credentials), and the `STORAGE_*` object-store connection. Put the shared values in one `.env` file and pass it to both containers so you don't have to keep two copies in sync:
 
 ```
 DATABASE_URL=postgresql://user:pass@host:5432/pgbr
-REDIS_URL=redis://redis:6379
 ENCRYPTION_KEY=your-encryption-key
 AUTH_SECRET=your-secret-key
 
@@ -87,8 +86,6 @@ Bash
 
 ```
 docker network create pgbr
-
-docker run -d --network pgbr --name redis redis:8-alpine
 
 # Default object store — the only component that needs a durable volume. Skip it if you bring your own.
 docker run -d --network pgbr \
@@ -126,9 +123,7 @@ Once the containers are running, you need to create your admin user to start man
 
 The following environment variables should be set for optimal security and configuration.
 
-- `DATABASE_URL`: The Postgres connection string for pgbr's own metadata database.
-
-- `REDIS_URL`: The Redis connection string used for the backup/restore/migrate job queue. Required by both the dashboard and the worker.
+- `DATABASE_URL`: The Postgres connection string for pgbr's own metadata database, which also holds the backup/restore/migrate job queue. Required by both the dashboard and the worker.
 
 - `ENCRYPTION_KEY`: Used to encrypt/decrypt stored connection strings and storage credentials. Must be identical on the dashboard and the worker.
 

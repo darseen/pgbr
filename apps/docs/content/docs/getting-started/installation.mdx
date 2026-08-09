@@ -88,7 +88,6 @@ apart:
 
 ```bash title=".env"
 DATABASE_URL=postgresql://user:pass@host:5432/pgbr
-REDIS_URL=redis://redis:6379
 ENCRYPTION_KEY=your-encryption-key
 AUTH_SECRET=your-secret-key
 
@@ -144,9 +143,9 @@ error while interpolating services.worker.environment.DATABASE_URL:
 required variable POSTGRES_PASSWORD is missing a value: set POSTGRES_PASSWORD in .env
 ```
 
-What that file does beyond starting the five containers:
+What that file does beyond starting the four containers:
 
-- Postgres, Redis, and SeaweedFS sit on an **internal** network — no published
+- Postgres and SeaweedFS sit on an **internal** network — no published
   ports and no internet access. Only the dashboard's port reaches the host.
 - `DATABASE_URL` is derived from the `POSTGRES_*` values, so the app and the
   database cannot disagree about the password.
@@ -154,7 +153,7 @@ What that file does beyond starting the five containers:
   have finished before it touches the schema.
 - `stop_grace_period` is long enough for an in-flight `pg_dump` to finish
   instead of being killed ten seconds into a shutdown.
-- Redis persists with AOF, so queued jobs survive a restart.
+- Queued jobs are rows in Postgres, so they survive any restart.
 - Every service gets log rotation, so a long-running install can't fill the disk
   with JSON logs.
 
@@ -175,16 +174,6 @@ What that file does beyond starting the five containers:
 
 ```bash
 docker network create pgbr
-```
-
-</Step>
-
-<Step>
-
-### Start Redis
-
-```bash
-docker run -d --network pgbr --name redis redis:8-alpine
 ```
 
 </Step>
@@ -250,8 +239,8 @@ node packages/db/dist/migrate.js
 
 The worker, on boot:
 
-1. Reconciles backup schedules from Postgres into Redis, behind a short Redis
-   lock so exactly one replica does it when you run several.
+1. Runs a scheduler tick behind an advisory lock, so a schedule that came due
+   while every worker was down fires promptly and exactly once.
 2. Creates the configured storage bucket if it doesn't exist.
 
 <Callout type="info">

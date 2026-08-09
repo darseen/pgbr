@@ -1,9 +1,18 @@
 import authorizeRequest from "@/lib/authorize-request";
-import { getMigrateQueue, getMigrateQueueEvents } from "@/lib/queue";
 import { ApiResponse } from "@/types";
+import { db, migrationJobsTable } from "@repo/db";
+import { enqueue, QUEUE_NAMES, subscribeJobEvents } from "@repo/queue";
 import type { MigrateJobPayload } from "@repo/types";
+import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
+
+export const dynamic = "force-dynamic";
+
+type MigrationStatusPayload = {
+  backupStatus: unknown;
+  restoreStatus: unknown;
+};
 
 export async function POST(request: NextRequest) {
   const { data, error: authError } = await authorizeRequest();
@@ -22,37 +31,76 @@ export async function POST(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
-
-      type MigrationStatusPayload = {
-        backupStatus: unknown;
-        restoreStatus: unknown;
-      };
+      let closed = false;
 
       const sendEvent = (payload: ApiResponse<MigrationStatusPayload>) => {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(payload)}\n\n`),
-        );
-      };
-
-      const queueEvents = getMigrateQueueEvents();
-      const onProgress = ({
-        jobId: progressJobId,
-        data: progressData,
-      }: {
-        jobId: string;
-        data: unknown;
-      }) => {
-        if (progressJobId === jobId) {
-          sendEvent({
-            error: null,
-            data: progressData as MigrationStatusPayload,
-          });
+        if (closed) return;
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(payload)}\n\n`),
+          );
+        } catch {
+          closed = true;
         }
       };
 
+      const finish = () => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // Already closed by the client disconnecting.
+        }
+      };
+
+      // Subscribe before enqueueing, so a job that finishes immediately can't
+      // complete in the gap between the insert and the listener attaching.
+      let settle: () => void = () => {};
+      const settled = new Promise<void>((resolve) => {
+        settle = resolve;
+      });
+
+      const unsubscribe = subscribeJobEvents(async (event) => {
+        if (event.jobId !== jobId) return;
+
+        if (event.event === "progress") {
+          sendEvent({
+            error: null,
+            data: event.data as MigrationStatusPayload,
+          });
+          return;
+        }
+
+        if (event.event === "completed") {
+          sendEvent({
+            error: null,
+            data: { backupStatus: "completed", restoreStatus: "completed" },
+          });
+          settle();
+          return;
+        }
+
+        // The event carries no message; the job's row holds the tool's stderr.
+        const [row] = await db
+          .select({ error: migrationJobsTable.error })
+          .from(migrationJobsTable)
+          .where(eq(migrationJobsTable.id, jobId));
+
+        sendEvent({
+          error: {
+            message:
+              row?.error ?? "Migration failed. No detailed logs available.",
+          },
+          data: null,
+        });
+        settle();
+      });
+
+      request.signal.addEventListener("abort", () => settle());
+
       try {
         const payload: MigrateJobPayload = {
-          jobId,
           userId,
           sourceId: body.sourceId,
           targetId: body.targetId,
@@ -62,37 +110,23 @@ export async function POST(request: NextRequest) {
           restoreFlags: body.restoreFlags,
         };
 
-        const job = await getMigrateQueue().add("migrate", payload, {
-          jobId,
+        await enqueue(db, {
+          id: jobId,
+          queue: QUEUE_NAMES.migrate,
+          userId,
+          payload,
         });
 
-        queueEvents.on("progress", onProgress);
-
-        try {
-          const result = await job.waitUntilFinished(queueEvents);
-          sendEvent({ error: null, data: result as MigrationStatusPayload });
-        } catch (jobError) {
-          sendEvent({
-            error: {
-              message:
-                jobError instanceof Error
-                  ? jobError.message
-                  : "Migration failed. No detailed logs available.",
-            },
-            data: null,
-          });
-        } finally {
-          controller.close();
-        }
+        await settled;
       } catch (error) {
         console.error("Migration Job Setup Error:", error);
         sendEvent({
           error: { message: "Failed to start migration processes" },
           data: null,
         });
-        controller.close();
       } finally {
-        queueEvents.off("progress", onProgress);
+        unsubscribe();
+        finish();
       }
     },
   });

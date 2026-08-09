@@ -1,20 +1,31 @@
 {
-  "name": "@repo/shared",
+  "name": "@repo/queue",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/types": "workspace:*"
+    "@repo/db": "workspace:*",
+    "@repo/types": "workspace:*",
+    "cron-parser": "4.9.0",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@types/node": "^25.9.4",
+    "@types/pg": "^8.11.10",
     "typescript": "^6.0.3"
   },
   "license": "MIT"

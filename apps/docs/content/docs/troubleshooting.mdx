@@ -43,13 +43,14 @@ whether it picked the variable up.
 Nothing is consuming the queue.
 
 - **Is the worker running?** `docker ps`, then check its logs.
-- **Do both services share `REDIS_URL`?** They must point at the *same* Redis. A
-  dashboard enqueuing into one and a worker consuming another looks exactly like
-  this — no errors, no progress.
-- **Do both share `DATABASE_URL`?** The worker writes job rows itself.
+- **Do both services share `DATABASE_URL`?** They must point at the *same*
+  database. A dashboard enqueuing into one and a worker polling another looks
+  exactly like this — no errors, no progress.
+- **Check `job_queue`.** Rows stuck at `pending` mean nothing is claiming;
+  rows at `active` with a stale `heartbeat_at` mean a worker died.
 
-The worker logs a schedule reconciliation line on boot. If you don't see it, it
-isn't reaching Postgres or Redis.
+The worker logs a ready line on boot. If you don't see it, it isn't reaching
+Postgres.
 
 </Accordion>
 
@@ -180,8 +181,8 @@ The row points at a key that no longer resolves.
 - **Read the cron description** the form generates. `0 0 1 * 1` is the 1st *and*
   every Monday — day-of-month and day-of-week are ORed.
 - **Check the timezone.** It fires in the schedule's zone, not the server's.
-- **Was Redis flushed?** Schedulers rebuild on the next worker boot — restart the
-  worker to force it.
+- **Is `next_run_at` set?** A null means the schedule hasn't been picked up yet;
+  it is filled in on the next tick, without firing.
 - **Look for failures.** A schedule that runs and fails looks like one that never
   ran, unless you check Job History.
 
@@ -243,8 +244,8 @@ Try a different name.
 
 <Accordion title="The worker restarts and jobs re-run">
 
-Working as designed. BullMQ's stalled-job detection re-delivers jobs whose worker
-died, and processors are idempotent so a re-delivery converges on the same row.
+Working as designed. A job whose worker died is requeued once its heartbeat goes
+stale, and processors are idempotent so a re-delivery converges on the same row.
 
 A re-delivered backup re-runs `pg_dump` from scratch. Re-delivered restores replay
 into the target — with Single transaction on, the failed first attempt rolled

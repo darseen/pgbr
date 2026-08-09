@@ -9,7 +9,6 @@ x-logging: &logging
 x-shared-env: &shared-env
   # Password must be URL-safe, or URL-encode it here.
   DATABASE_URL: postgres://${POSTGRES_USER:-pgbr}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@pgbr_db:5432/${POSTGRES_DB:-pgbr}
-  REDIS_URL: redis://redis:6379
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env — generate with openssl rand -base64 32}
   STORAGE_ENDPOINT: ${STORAGE_ENDPOINT:-http://seaweedfs:8333}
   STORAGE_REGION: ${STORAGE_REGION:-us-east-1}
@@ -30,8 +29,6 @@ services:
       - "${PGBR_BIND_ADDR:-0.0.0.0}:${PGBR_PORT:-3000}:3000"
     depends_on:
       pgbr_db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       seaweedfs:
         condition: service_healthy
@@ -62,8 +59,6 @@ services:
       dashboard:
         condition: service_healthy
       pgbr_db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       seaweedfs:
         condition: service_healthy
@@ -99,23 +94,6 @@ services:
       - no-new-privileges:true
     logging: *logging
 
-  redis:
-    image: redis:8-alpine
-    restart: unless-stopped
-    # AOF persistence so queued jobs survive a restart.
-    command: ["redis-server", "--appendonly", "yes"]
-    healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - redis_data:/data
-    networks: [backend]
-    security_opt:
-      - no-new-privileges:true
-    logging: *logging
-
   # Default object store. Unauthenticated by design — never publish its port.
   # Drop this service when STORAGE_* points at another S3-compatible store.
   seaweedfs:
@@ -146,5 +124,4 @@ networks:
 
 volumes:
   pgbr_db:
-  redis_data:
   seaweedfs_data:

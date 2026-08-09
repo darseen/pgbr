@@ -1,13 +1,5 @@
 import authorizeRequest from "@/lib/authorize-request";
-import {
-  getBackupQueue,
-  getBackupQueueEvents,
-  getMigrateQueue,
-  getMigrateQueueEvents,
-  getRestoreQueue,
-  getRestoreQueueEvents,
-} from "@/lib/queue";
-import type { Queue } from "bullmq";
+import { subscribeJobEvents } from "@repo/queue";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +8,8 @@ export const dynamic = "force-dynamic";
 // caller's jobs changes state, so open pages can refresh their server-rendered
 // data. This is how background (scheduled) jobs become visible without a
 // manual reload. "progress" rather than "active" marks a job's start because
-// the worker inserts the DB row first and calls updateProgress right after —
-// by then a refresh has something new to render.
+// the worker inserts the DB row first and reports progress right after — by
+// then a refresh has something new to render.
 export async function GET(request: Request) {
   const { data, error: authError } = await authorizeRequest();
   if (authError) {
@@ -27,24 +19,6 @@ export async function GET(request: Request) {
     );
   }
   const userId = data.user.id;
-
-  // Queue events are instance-wide, so each one is matched back to its job to
-  // see who owns it. Without this every user is told when anyone's job runs —
-  // no data, but a timing signal that isn't theirs to see.
-  async function ownsJob(queue: Queue, jobId: string) {
-    try {
-      const job = await queue.getJob(jobId);
-      return job?.data?.userId === userId;
-    } catch {
-      return false;
-    }
-  }
-
-  const queues = [
-    ["backup", getBackupQueue(), getBackupQueueEvents()],
-    ["restore", getRestoreQueue(), getRestoreQueueEvents()],
-    ["migrate", getMigrateQueue(), getMigrateQueueEvents()],
-  ] as const;
 
   const stream = new ReadableStream({
     start(controller) {
@@ -60,23 +34,14 @@ export async function GET(request: Request) {
         }
       };
 
-      const listeners = queues.map(([queue, jobQueue, queueEvents]) => {
-        const emit =
-          (event: string) =>
-          async ({ jobId }: { jobId: string }) => {
-            if (closed) return;
-            if (!(await ownsJob(jobQueue, jobId))) return;
-            send(`data: ${JSON.stringify({ queue, event })}\n\n`);
-          };
-        const handlers = {
-          progress: emit("progress"),
-          completed: emit("completed"),
-          failed: emit("failed"),
-        };
-        queueEvents.on("progress", handlers.progress);
-        queueEvents.on("completed", handlers.completed);
-        queueEvents.on("failed", handlers.failed);
-        return { queueEvents, handlers };
+      // Events carry their owner, so the filter is a comparison rather than a
+      // lookup per event. You're told when your own jobs move and nothing
+      // else — another account's activity isn't even visible as a timing signal.
+      const unsubscribe = subscribeJobEvents((event) => {
+        if (event.userId !== userId) return;
+        send(
+          `data: ${JSON.stringify({ queue: event.queue, event: event.event })}\n\n`,
+        );
       });
 
       // Comment frames keep the connection alive through proxies.
@@ -86,11 +51,7 @@ export async function GET(request: Request) {
         if (closed) return;
         closed = true;
         clearInterval(heartbeat);
-        for (const { queueEvents, handlers } of listeners) {
-          queueEvents.off("progress", handlers.progress);
-          queueEvents.off("completed", handlers.completed);
-          queueEvents.off("failed", handlers.failed);
-        }
+        unsubscribe();
         try {
           controller.close();
         } catch {

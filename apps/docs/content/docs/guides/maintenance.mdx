@@ -26,8 +26,8 @@ Delete backups from the Backups page, where deletion removes the artifact too.
 The nuke option deletes, for **your** user:
 
 - Every **database connection**
-- Every **schedule**, and unregisters its cron scheduler in Redis
-- Every **backup, restore, and migration** job row
+- Every **schedule**
+- Every **backup, restore, and migration** job row, and any queued job not yet started
 - Every **artifact those jobs referenced**, resolved from the rows themselves
   rather than by wiping the bucket's prefixes
 
@@ -53,7 +53,7 @@ are gone and the objects are orphaned.
 
 `GET /api/health` returns `{ "status": "ok" }` with no authentication. It's an
 unconditional liveness probe — it confirms the process is serving HTTP, not that
-Postgres, Redis, or the store are reachable.
+Postgres or the store are reachable.
 
 ```yaml
 healthcheck:
@@ -65,7 +65,7 @@ healthcheck:
 
 <Callout type="warn">
   Don't read too much into a green health check. A dashboard with an unreachable
-  Redis still returns `ok`. For real assurance, watch whether scheduled backups are
+  database still returns `ok`. For real assurance, watch whether scheduled backups are
   completing — that exercises the whole path.
 </Callout>
 
@@ -151,8 +151,8 @@ It reconciles schedules and re-checks the bucket on boot.
   tells you what they are.
 </Callout>
 
-Restarting a worker mid-job is safe: BullMQ's stalled-job detection re-delivers to
-another worker, and processors are idempotent. It isn't free — a re-delivered
+Restarting a worker mid-job is safe: the worker hands back what it did not
+finish, and processors are idempotent. It isn't free — a re-delivered
 backup re-runs `pg_dump` from the start.
 
 ## Backing up pgbr itself
@@ -176,8 +176,8 @@ Worth watching:
 | **Failed jobs** | Job History. A schedule failing silently is the main way backups quietly stop existing. |
 | **Backup sizes** | A sudden drop suggests a filter change or a partial dump. |
 | **Bucket growth** | Retention only applies through live schedules — manual backups accumulate forever. |
-| **Worker logs** | Where reconciliation, bucket provisioning, and cleanup failures surface. |
-| **Redis persistence** | Queue state is rebuildable, but in-flight jobs aren't. |
+| **Worker logs** | Where scheduler ticks, bucket provisioning, and cleanup failures surface. |
+| **Stalled jobs** | A job that stalls twice is failed for good — worth alerting on. |
 
 <Callout type="info">
   The single best monitor for a backup system is a **restore**. Restore a recent

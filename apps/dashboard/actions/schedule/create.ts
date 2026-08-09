@@ -1,11 +1,10 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getBackupQueue } from "@/lib/queue";
 import { scheduleSchema, splitScheduleInput } from "@/lib/zod/schedule";
 import { db } from "@repo/db";
 import { backupSchedulesTable, databasesTable } from "@repo/db/schema";
-import { buildScheduleTemplate } from "@repo/shared";
+import { nextOccurrence } from "@repo/queue";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -37,6 +36,8 @@ export default async function createSchedule(input: unknown) {
       return { data: null, error: { message: "Database not found" } };
     }
 
+    // The row is the scheduler: next_run_at is what makes it fire, so there's
+    // no second system to register with and nothing to roll back.
     const [schedule] = await db
       .insert(backupSchedulesTable)
       .values({
@@ -44,28 +45,11 @@ export default async function createSchedule(input: unknown) {
         userId,
         ...scheduleFields,
         flags,
+        nextRunAt: scheduleFields.enabled
+          ? nextOccurrence(scheduleFields.cronExpression, scheduleFields.timezone)
+          : null,
       })
       .returning();
-
-    if (schedule!.enabled) {
-      // DB first, Redis second; roll the row back if registration fails so
-      // the user never sees a schedule that silently doesn't run. The
-      // worker's boot reconciliation is a backstop, not the primary path.
-      try {
-        await getBackupQueue().upsertJobScheduler(
-          ...buildScheduleTemplate(schedule!),
-        );
-      } catch (redisError) {
-        console.error(redisError);
-        await db
-          .delete(backupSchedulesTable)
-          .where(eq(backupSchedulesTable.id, schedule!.id));
-        return {
-          data: null,
-          error: { message: "Failed to register the schedule. Please try again." },
-        };
-      }
-    }
 
     revalidatePath("/dashboard/schedules");
     return { data: { schedule }, error: null };

@@ -1,7 +1,6 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getBackupQueue } from "@/lib/queue";
 import { db } from "@repo/db";
 import { backupSchedulesTable } from "@repo/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -32,8 +31,6 @@ export default async function deleteSchedule(id: string) {
     if (!deleted) {
       return { data: null, error: { message: "Schedule not found" } };
     }
-
-    await getBackupQueue().removeJobScheduler(deleted.id);
 
     revalidatePath("/dashboard/schedules");
     return { data: null, error: null };

@@ -9,7 +9,7 @@ pgbr is a pnpm + Turborepo monorepo. Node 24+ and pnpm are required (see
 ## Run the stack
 
 The fastest path is Docker Compose, which builds both apps from source and wires
-up Postgres, Redis, SeaweedFS, and two throwaway test databases to practise
+up Postgres, SeaweedFS, and two throwaway test databases to practise
 against:
 
 ```bash
@@ -30,8 +30,8 @@ pnpm install
 pnpm dev          # turbo run dev across all apps
 ```
 
-You still need Postgres, Redis, and an S3-compatible store reachable from your
-machine, and `DATABASE_URL`, `REDIS_URL`, `ENCRYPTION_KEY`, and `AUTH_SECRET` set.
+You still need Postgres and an S3-compatible store reachable from your machine,
+and `DATABASE_URL`, `ENCRYPTION_KEY`, and `AUTH_SECRET` set.
 Copy `apps/dashboard/.env.example` to `.env` as a starting point.
 
 The worker also needs `pg_dump`, `pg_restore`, `psql`, and `pg_isready` on
@@ -66,7 +66,8 @@ the PostgreSQL client tools yourself.
       <File name="src/schema/ — drizzle tables" />
       <File name="drizzle/ — SQL migrations" />
     </Folder>
-    <File name="shared/ — encryption, redis, queue names, scheduler" />
+    <File name="queue/ — job queue, runner, scheduler, events" />
+    <File name="shared/ — encryption, pg connection strings" />
     <File name="storage/ — S3-compatible object store" />
     <File name="types/ — flags, zod schemas, job payloads" />
   </Folder>

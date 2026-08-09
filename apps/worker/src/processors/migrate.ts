@@ -1,7 +1,7 @@
 import { db, databasesTable, migrationJobsTable } from "@repo/db";
+import type { JobContext } from "@repo/queue";
 import { decrypt, encrypt, pgConnection } from "@repo/shared";
 import { migrationSchema, type MigrateJobPayload } from "@repo/types";
-import type { Job } from "bullmq";
 import { and, eq } from "drizzle-orm";
 import { spawn } from "node:child_process";
 import { buildPgDumpArgs, buildPgRestoreArgs } from "../lib/pg-args.js";
@@ -46,9 +46,10 @@ async function getDbUrl({
   }
 }
 
-export async function processMigrate(job: Job<MigrateJobPayload>) {
-  const { jobId, userId, sourceId, targetId, sourceUrl, targetUrl, backupFlags, restoreFlags } =
+export async function processMigrate(job: JobContext<MigrateJobPayload>) {
+  const { userId, sourceId, targetId, sourceUrl, targetUrl, backupFlags, restoreFlags } =
     job.data;
+  const jobId = job.id;
 
   const result = migrationSchema.safeParse({
     sourceId,
@@ -80,21 +81,29 @@ export async function processMigrate(job: Job<MigrateJobPayload>) {
     throw new Error("Source and target databases cannot be the same");
   }
 
-  await db.insert(migrationJobsTable).values({
-    id: jobId,
-    userId,
-    targetDatabaseId: targetDb.id,
-    sourceDatabaseId: sourceDb.id,
-    sourceDatabaseUrl: encrypt(sourceDb.url),
-    targetDatabaseUrl: encrypt(targetDb.url),
-    sourceDatabaseName: sourceDb.name,
-    targetDatabaseName: targetDb.name,
-    backupFlags: result.data.backupFlags,
-    restoreFlags: result.data.restoreFlags,
-    status: "running",
-  });
+  // Idempotent, for the same reason as the backup and restore processors: a
+  // requeued job re-runs this and must not crash on its own row.
+  await db
+    .insert(migrationJobsTable)
+    .values({
+      id: jobId,
+      userId,
+      targetDatabaseId: targetDb.id,
+      sourceDatabaseId: sourceDb.id,
+      sourceDatabaseUrl: encrypt(sourceDb.url),
+      targetDatabaseUrl: encrypt(targetDb.url),
+      sourceDatabaseName: sourceDb.name,
+      targetDatabaseName: targetDb.name,
+      backupFlags: result.data.backupFlags,
+      restoreFlags: result.data.restoreFlags,
+      status: "running",
+    })
+    .onConflictDoUpdate({
+      target: migrationJobsTable.id,
+      set: { status: "running", error: null, completedAt: null },
+    });
 
-  await job.updateProgress({ backupStatus: "running", restoreStatus: "running" });
+  await job.reportProgress({ backupStatus: "running", restoreStatus: "running" });
 
   const safeBackupFlags = { ...result.data.backupFlags, format: "custom" as const, jobs: 1 };
   const safeRestoreFlags = { ...result.data.restoreFlags, jobs: 1 };

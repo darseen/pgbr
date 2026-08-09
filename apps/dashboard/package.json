@@ -11,12 +11,12 @@
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
     "@repo/db": "workspace:*",
+    "@repo/queue": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/storage": "workspace:*",
     "@repo/types": "workspace:*",
     "@tanstack/react-table": "^8.21.3",
     "better-auth": "1.6.11",
-    "bullmq": "^5.79.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cron-parser": "4.9.0",

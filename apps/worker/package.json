@@ -15,10 +15,10 @@
   "type": "module",
   "dependencies": {
     "@repo/db": "workspace:*",
+    "@repo/queue": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/storage": "workspace:*",
     "@repo/types": "workspace:*",
-    "bullmq": "^5.79.2",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
     "tar": "^7.4.3"

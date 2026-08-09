@@ -8,23 +8,23 @@ description: Every variable pgbr reads, which service reads it, and what happens
 | Variable | Dashboard | Worker | Required |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | Yes | Yes | Yes |
-| `REDIS_URL` | Yes | Yes | Defaulted |
 | `ENCRYPTION_KEY` | Yes | Yes | Yes |
 | `AUTH_SECRET` | Yes | — | Recommended |
 | `BASE_URL` | Yes | — | Yes, unless localhost |
 | `WORKER_CONCURRENCY` | — | Yes | Defaulted |
+| `DATABASE_POOL_MAX` | Yes | Yes | Defaulted |
 | `STORAGE_*` | Yes | Yes | Defaulted |
 
-The practical takeaway: **`DATABASE_URL`, `REDIS_URL`, `ENCRYPTION_KEY`, and the
-`STORAGE_*` set must match on both services.** Put them in one `.env` file and
-pass it to both containers.
+The practical takeaway: **`DATABASE_URL`, `ENCRYPTION_KEY`, and the `STORAGE_*`
+set must match on both services.** Put them in one `.env` file and pass it to
+both containers.
 
 ## Core
 
 ### `DATABASE_URL`
 
 The PostgreSQL connection string for **pgbr's own metadata** — users, connections,
-job history, schedules. Not a database you're backing up.
+job history, schedules, and the job queue. Not a database you're backing up.
 
 ```bash
 DATABASE_URL=postgresql://user:pass@host:5432/pgbr
@@ -33,16 +33,25 @@ DATABASE_URL=postgresql://user:pass@host:5432/pgbr
 Required by both services, and by `drizzle-kit generate` (which needs it set but
 never connects). The dashboard's entrypoint runs migrations against it on boot.
 
-### `REDIS_URL`
+<Callout type="warn">
+  The worker holds a `LISTEN` connection for queue wake-ups, which PgBouncer
+  breaks in transaction pooling mode. If you point `DATABASE_URL` at a pooler,
+  it needs session pooling.
+</Callout>
 
-The Redis connection for the job queue.
+### `DATABASE_POOL_MAX`
+
+How many Postgres connections each service pools. Defaults to `20`.
 
 ```bash
-REDIS_URL=redis://redis:6379
+DATABASE_POOL_MAX=20
 ```
 
-Defaults to `redis://localhost:6379`, which is essentially never right inside
-Docker. Set it.
+The worker is the one that needs headroom: `WORKER_CONCURRENCY` applies per
+queue, so the default 5 allows 15 concurrent jobs, on top of the poll loops,
+heartbeat, reaper, and scheduler tick. Raise this alongside
+`WORKER_CONCURRENCY`, and make sure Postgres' own `max_connections` can cover
+every service you point at it.
 
 ### `ENCRYPTION_KEY`
 
@@ -185,7 +194,6 @@ addressing.
 ```bash title=".env"
 # Shared — must match on both services
 DATABASE_URL=postgresql://pgbr:secret@postgres:5432/pgbr
-REDIS_URL=redis://redis:6379
 ENCRYPTION_KEY=hX8vN2mQ4pR7tY1wZ3aB5cD6eF9gH0jK2lM4nP6qR8s=
 
 # Dashboard only

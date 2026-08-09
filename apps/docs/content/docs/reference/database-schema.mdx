@@ -78,7 +78,7 @@ violation surfaced as a generic error.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | text | Primary key. A UUID, or a sanitized BullMQ scheduler ID |
+| `id` | text | Primary key. A UUID, shared with the job's `job_queue` row |
 | `database_id` | text | → `databases.id`, set null on delete |
 | `user_id` | uuid | → `users.id`, set null on delete |
 | `schedule_id` | text | → `backup_schedules.id`, set null on delete |
@@ -107,7 +107,7 @@ in place; existing rows are unaffected.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | text | Primary key. Also the BullMQ scheduler key |
+| `id` | text | Primary key |
 | `user_id` | uuid | → `users.id`, **cascade** on delete |
 | `database_id` | text | → `databases.id`, **cascade**. Immutable after creation |
 | `name` | text | |
@@ -116,12 +116,49 @@ in place; existing rows are unaffected.
 | `enabled` | boolean | Defaults true |
 | `flags` | jsonb | `pg_dump` flags for each run |
 | `keep_last` | integer | Retention. Null = keep everything |
+| `next_run_at` | timestamptz | When it fires next. Null = not scheduled yet |
 
 Schedules **cascade** where jobs set null: a schedule with no database is
 meaningless, but a backup without one is still an artifact you might need.
 
-The row is the source of truth; the BullMQ scheduler keyed by `id` is derived and
-rebuilt on worker boot.
+The row is the scheduler. `next_run_at` is the only thing that makes a schedule
+fire, so there is no derived registration anywhere to reconcile. A null means
+"not scheduled yet" — the worker computes the next occurrence without firing,
+which is what stops a fresh upgrade from running every schedule at once.
+
+## `job_queue`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | text | Primary key. Shared with the job's history row |
+| `queue` | text | `backup` / `restore` / `migrate` |
+| `user_id` | uuid | → `users.id`, **cascade** on delete |
+| `payload` | jsonb | The job's arguments |
+| `status` | text | `pending` / `active` / `completed` / `failed` |
+| `run_at` | timestamptz | Not claimable before this |
+| `attempts` | integer | Incremented on claim |
+| `max_attempts` | integer | Defaults 1 — nothing retries automatically |
+| `stalls` | integer | Counted separately from attempts |
+| `locked_by` | text | Which worker holds it |
+| `locked_at` / `heartbeat_at` | timestamptz | Staleness is judged on the heartbeat |
+| `last_error` | text | |
+| `created_at` / `completed_at` | timestamptz | |
+
+Sharing `id` with the history row is what makes a re-delivered job land on the
+row it already created instead of orphaning it.
+
+Two partial indexes back the hot paths — `(queue, run_at) WHERE status =
+'pending'` for claiming and `(heartbeat_at) WHERE status = 'active'` for
+reaping. Their predicates have to match the queries exactly or Postgres won't
+use them.
+
+Two triggers `pg_notify` the `pgbr_jobs` channel when a row becomes claimable,
+on insert and on requeue. Emitting from a trigger rather than application code
+covers rows the scheduler and reaper write, and can't be forgotten at a new call
+site.
+
+Rows are purged seven days after they finish. The history tables are the
+permanent record; these are bookkeeping.
 
 ## `restore_jobs`
 
@@ -198,8 +235,8 @@ can't do in a non-TTY shell. Add first, drop second.
 - **`snake_case`** column naming, configured on the Drizzle client
 - **`timestamps`** — `created_at` / `updated_at`, with `updated_at` auto-touched
 - **Encrypted columns** store `iv:authTag:ciphertext`, hex-encoded
-- **Job IDs are `text`**, not `uuid`, because scheduled backups use sanitized BullMQ
-  scheduler IDs
+- **Job IDs are `text`**, not `uuid` — they hold UUIDs today, but the column type
+  predates that and widening is free
 - **Denormalized names** on job rows, so history survives its subject
 
 ## Related

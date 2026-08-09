@@ -1,9 +1,8 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { getBackupQueue } from "@/lib/queue";
 import { db } from "@repo/db";
-import { backupSchedulesTable, databasesTable } from "@repo/db/schema";
+import { databasesTable } from "@repo/db/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
@@ -18,25 +17,11 @@ export default async function deleteDatabase(id: string) {
   }
 
   try {
-    // Deleting the database cascades away its schedule rows, so grab their
-    // ids first to also unregister the BullMQ job schedulers.
-    const schedules = await db
-      .select({ id: backupSchedulesTable.id })
-      .from(backupSchedulesTable)
-      .where(
-        and(
-          eq(backupSchedulesTable.databaseId, id),
-          eq(backupSchedulesTable.userId, userId),
-        ),
-      );
-
+    // The FK cascade takes the schedule rows with it, and a schedule row is
+    // the whole schedule — there's nothing else to unregister.
     await db
       .delete(databasesTable)
       .where(and(eq(databasesTable.id, id), eq(databasesTable.userId, userId)));
-
-    for (const schedule of schedules) {
-      await getBackupQueue().removeJobScheduler(schedule.id);
-    }
 
     revalidatePath("/dashboard");
     return { data: null, error: null };

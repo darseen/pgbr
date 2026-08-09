@@ -3,9 +3,9 @@ title: Scheduling Backups
 description: Cron schedules, timezones, and retention.
 ---
 
-A schedule runs a backup on a cron pattern. Schedules live in Postgres; the cron
-registrations in Redis are derived from them and rebuilt on every worker boot, so
-a Redis flush doesn't silently cost you your backups.
+A schedule runs a backup on a cron pattern. A schedule is one row in Postgres,
+and that row *is* the scheduler — its `next_run_at` column is what makes it
+fire. There's no registration anywhere else that could fall out of step with it.
 
 Manage them from the **Schedules** page.
 
@@ -103,13 +103,13 @@ than a lost backup.
 
 ## Enabling and disabling
 
-The toggle registers or unregisters the cron scheduler in Redis. A disabled
-schedule keeps its row and its history, and simply doesn't run — it's also skipped
-by worker boot reconciliation.
+The toggle sets or clears `next_run_at`. A disabled schedule keeps its row and
+its history and simply doesn't run; enabling it computes the next occurrence
+from now.
 
 ## Deleting
 
-Deleting removes the schedule row and unregisters its scheduler. **Backups it
+Deleting removes the schedule row, and that's the whole operation. **Backups it
 created are kept** — their `scheduleId` becomes null and their artifacts stay. You
 lose the schedule, not its output.
 
@@ -117,19 +117,23 @@ Once unlinked, those backups are no longer pruned by anything. Retention only ev
 applies through a live schedule, so delete a schedule and its old backups become
 yours to manage.
 
-## How schedules stay consistent
+## How schedules fire
 
-Two mechanisms keep Postgres and Redis in agreement:
+Every 30 seconds a worker takes a transaction-scoped advisory lock — so exactly
+one replica ticks, however many you run — and, for each enabled schedule whose
+`next_run_at` has passed, queues a backup and computes the next occurrence. Both
+writes are in the same transaction: a schedule cannot fire without being
+rescheduled, or be rescheduled without firing.
 
-1. **Write ordering with rollback.** Creating a schedule writes Postgres first and
-   Redis second. If registration fails, the row is rolled back — so you never see
-   a schedule in the list that isn't actually registered.
-2. **Boot reconciliation.** Every worker, on startup, takes a short Redis lock and
-   re-registers every enabled schedule while removing orphaned schedulers. It's
-   idempotent, and it's the backstop, not the primary path.
+<Callout type="info">
+  The next occurrence is computed from *now*, never from the run that was missed.
+  If every worker was down for a day, each schedule fires once when one returns
+  and then resyncs — you don't get a day of backups replayed at you.
+</Callout>
 
-Both paths build the registration through one shared function, so the dashboard
-and the worker cannot disagree about what a schedule means.
+Because the schedule row is the only state involved, there is nothing to
+reconcile and nothing that can drift. Creating, editing, enabling, or disabling
+a schedule is a single write to a single row.
 
 ## Related
 
