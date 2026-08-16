@@ -144,6 +144,8 @@ Jobs stage bytes in a temp directory (`mkdtemp` in the system tmpdir) because
 | Retention prune | Deleted | Deleted |
 | Consume a custom upload | — | Deleted after the restore |
 | Delete a schedule | Schedule only | Kept |
+| Delete an Activity entry | The job row itself | Deleted (completed backups only) |
+| **Clear all activity** | All job history and recorded actions | Every completed backup's object |
 | **Wipe everything** | All databases, schedules, and job history | Everything under both prefixes |
 
 Object deletion is best-effort and logged on failure — a storage hiccup doesn't

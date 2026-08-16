@@ -8,6 +8,7 @@
     "schedules",
     "migrations",
     "object-storage",
+    "activity",
     "maintenance"
   ]
 }

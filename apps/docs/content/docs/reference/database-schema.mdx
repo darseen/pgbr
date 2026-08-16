@@ -3,8 +3,9 @@ title: Database Schema
 description: The tables in pgbr's metadata database and how they relate.
 ---
 
-pgbr's own Postgres holds users, connections, job history, schedules, and storage
-settings. Schema is defined with Drizzle in `packages/db/src/schema/`; migrations
+pgbr's own Postgres holds users, connections, job history, schedules, recorded
+actions, and storage settings. Schema is defined with Drizzle in
+`packages/db/src/schema/`; migrations
 live in `packages/db/drizzle/` and are applied automatically by the dashboard's
 entrypoint on boot.
 
@@ -23,6 +24,7 @@ erDiagram
     users ||--o{ backup_jobs : owns
     users ||--o{ restore_jobs : owns
     users ||--o{ migration_jobs : owns
+    users ||--o{ activity_events : owns
     users ||--o{ sessions : has
     users ||--o{ accounts : has
     databases ||--o{ backup_schedules : "scheduled by"
@@ -199,6 +201,35 @@ artifact, so `size` is counted as the bytes cross the pipe rather than measured
 from a file. It records the dump's size, not the space used in the target, and is
 recorded even when the restore side fails.
 
+## `activity_events`
+
+What the [Activity](/docs/guides/activity) feed shows beyond the job tables: the
+destructive changes that leave no row of their own behind.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | Primary key |
+| `user_id` | uuid | → `users.id`, **cascade** on delete |
+| `action` | text | `database.deleted`, `schedule.deleted`, `backup.deleted`, `restore.deleted`, `migration.deleted`, `restores.cleared`, `migrations.cleared`, `storage.updated`, `data.nuked` |
+| `summary` | text | The line rendered in the feed |
+| `details` | jsonb | Per-action context: counts, names, the cron a deleted schedule ran on |
+| `created_at` | timestamptz | |
+
+Jobs are **not** copied in here. The feed reads `backup_jobs`, `restore_jobs`,
+and `migration_jobs` directly and this table covers only what those don't record,
+so there is no second copy of a job to fall out of step with the first.
+
+`created_at` is `timestamptz` where the job tables' timestamps are naive. An
+audit row is ordered against rows written by other processes, so the offset
+belongs in the value rather than in a convention about what the value means.
+
+This is the one table that **cascades** on user deletion rather than setting
+null: a job row outlives its user because the artifact does, but a record of who
+did what is worthless once the who is gone.
+
+Writes are best-effort: a failed insert is logged and never fails the action it
+describes. Deleting *from* the Activity page is deliberately not recorded.
+
 ## `storage_settings`
 
 A **singleton** row with id `default`.
@@ -225,6 +256,9 @@ defaults.
 | `0001_late_blink` | |
 | `0002_add_storage_key_and_settings` | Added `storage_key` and `storage_settings` — the move to object storage |
 | `0003_drop_backup_path` | Dropped the old filesystem `backup_path` |
+| `0004_fine_magneto` | Widened `size` to `bigint`; made database names unique per user |
+| `0005_adorable_deadpool` | Added `job_queue` and `next_run_at`, the move off Redis |
+| `0006_tidy_moonstone` | Added `activity_events` |
 
 `0002`/`0003` are split deliberately: adding the new column and dropping the old
 one in one step makes `drizzle-kit generate` ask whether it's a rename, which it

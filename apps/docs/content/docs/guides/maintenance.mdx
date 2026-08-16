@@ -21,6 +21,11 @@ don't produce any. They're bookkeeping: clearing clutter, not deleting data.
 There's no equivalent for backup history, because a backup row owns an artifact.
 Delete backups from the Backups page, where deletion removes the artifact too.
 
+Both clears are recorded on the [Activity](/docs/guides/activity) page, with the
+number of rows they removed, which is the only trace left once the rows are
+gone. That page also has a **Clear all** that covers all three histories at once,
+artifacts included, while keeping your connections and schedules.
+
 ## Wipe everything
 
 The nuke option deletes, for **your** user:
@@ -30,6 +35,8 @@ The nuke option deletes, for **your** user:
 - Every **backup, restore, and migration** job row, and any queued job not yet started
 - Every **artifact those jobs referenced**, resolved from the rows themselves
   rather than by wiping the bucket's prefixes
+- Every **recorded action** on the Activity page, replaced by a single entry
+  saying the wipe happened
 
 It keeps your user account and your storage settings — you're left with a working,
 empty install rather than a broken one. Another account's databases, schedules,
@@ -173,7 +180,7 @@ Worth watching:
 
 | Signal | Why |
 | --- | --- |
-| **Failed jobs** | Job History. A schedule failing silently is the main way backups quietly stop existing. |
+| **Failed jobs** | Activity, filtered to Failed. A schedule failing silently is the main way backups quietly stop existing. |
 | **Backup sizes** | A sudden drop suggests a filter change or a partial dump. |
 | **Bucket growth** | Retention only applies through live schedules — manual backups accumulate forever. |
 | **Worker logs** | Where scheduler ticks, bucket provisioning, and cleanup failures surface. |
@@ -188,6 +195,7 @@ Worth watching:
 ## Related
 
 <Cards>
+  <Card title="Activity" href="/docs/guides/activity" />
   <Card title="Object storage" href="/docs/guides/object-storage" />
   <Card title="Troubleshooting" href="/docs/troubleshooting" />
 </Cards>

@@ -1,0 +1,116 @@
+---
+title: Activity
+description: One feed of every job that ran and every destructive change you made, and how to prune it.
+---
+
+The **Activity** page is a single chronological feed of everything that has
+happened on your account. Every backup, restore, and migration job, plus the
+changes that leave no job behind (deletions, the Settings clears, storage
+updates, and nuke).
+
+It's the page to open when the question is "what happened here, and when",
+rather than "what artifacts do I have", which is [Backups](/docs/guides/backups).
+
+## What's in the feed
+
+| Type | Source | Recorded by |
+| --- | --- | --- |
+| **Backup** | `backup_jobs` | The worker, as the job runs |
+| **Restore** | `restore_jobs` | The worker, as the job runs |
+| **Migration** | `migration_jobs` | The worker, as the job runs |
+| **Action** | `activity_events` | The dashboard, when you do something destructive |
+
+Jobs are read from their own tables rather than copied into an audit log, so
+what you see is the job row itself. A running backup shows as running here and
+in Job History because it *is* the same row; there's no second copy to fall out
+of step.
+
+Entries are sorted newest first and filterable by type, by status, and by a
+search across names and storage keys.
+
+### Actions that get recorded
+
+| Action | Recorded as |
+| --- | --- |
+| Delete a database connection | `database.deleted` |
+| Delete a schedule | `schedule.deleted` |
+| Delete backups, restores, or migrations from their own pages | `backup.deleted` / `restore.deleted` / `migration.deleted` |
+| Clear restore or migration history in Settings | `restores.cleared` / `migrations.cleared` |
+| Change storage settings | `storage.updated` |
+| Wipe everything | `data.nuked` |
+
+Each row keeps a summary and the details worth having later: how many rows a
+clear removed, which cron expression a deleted schedule ran on, which bucket
+storage was pointed at.
+
+<Callout type="info">
+  Deleting entries **from the Activity page itself is not recorded**. An audit
+  row saying "cleared the audit log" would refill the page you just emptied.
+  Deletions from every other page are.
+</Callout>
+
+## Inspecting an entry
+
+Click any row to open its details. For a job, that's the **exact flags it ran
+with**, the same self-describing record the restore path reads:
+
+| Type | Shows |
+| --- | --- |
+| Backup | `pg_dump` flags, storage key, size |
+| Restore | `pg_restore` flags, the key it read from |
+| Migration | **Both** the `pg_dump` and `pg_restore` flags, and bytes streamed |
+| Action | The details recorded with it |
+
+Every entry also shows its timeline and, on a failure, the tool's error.
+
+<Callout type="info">
+  A migration's details show its flags but never its connection strings. Those
+  columns are encrypted at rest and dropped server-side, so they don't reach the
+  browser at all.
+</Callout>
+
+## Deleting entries
+
+Three ways, all scoped to your own rows:
+
+| | Deletes |
+| --- | --- |
+| **Row trash icon** | That one entry |
+| **Select + Delete (n)** | Every checked entry, of any mix of types |
+| **Clear all** | Your entire history |
+
+Deleting an entry deletes the underlying row. A backup entry is a backup job,
+not a note about one.
+
+<Callout type="error">
+  Deleting a **completed backup** entry deletes its artifact from the object
+  store, exactly as deleting it from the Backups page would. The confirmation
+  dialog counts the artifacts at stake before you commit. Restore, migration,
+  and action entries own no artifacts, so deleting them only prunes history.
+</Callout>
+
+**Clear all** deletes every job row and every recorded action, and the artifacts
+of any completed backups among them. It keeps your **database connections** and
+**schedules**: it clears history, not configuration, which is what separates it
+from [Wipe everything](/docs/guides/maintenance#wipe-everything).
+
+Row deletion runs in one transaction. Object deletion happens after and is
+best-effort: if the store is unreachable the rows are still gone, the failure is
+logged, and the objects are orphaned rather than the delete being reported as
+failed.
+
+## Retention
+
+pgbr does not prune this feed on a timer. Job rows and recorded actions live
+until you delete them, or until a schedule's `keep_last` retention removes the
+backups it produced.
+
+The one exception is `job_queue`, which is bookkeeping rather than history and is
+purged seven days after a job finishes. That never touches what you see here.
+
+## Related
+
+<Cards>
+  <Card title="Maintenance" href="/docs/guides/maintenance" />
+  <Card title="Database schema" href="/docs/reference/database-schema" />
+</Cards>

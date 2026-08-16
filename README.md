@@ -26,6 +26,8 @@
 
 - **Seamless Migrations**: Easily migrate data from one PostgreSQL database to another with one-click data transfer tools.
 
+- **Activity Feed**: See every job and every destructive change in one place, inspect the exact flags any job ran with, and prune the history entry by entry or all at once.
+
 ## Getting Started
 
 pgbr runs as stateless **dashboard** (web UI + API) and **worker** (runs `pg_dump`/`pg_restore` jobs from a queue) services backed by two stateful ones: **Postgres** (job metadata *and* the job queue) and an **S3-compatible object store** that owns all backup artifacts. The dashboard and worker keep no durable local storage — they stream artifacts to/from the object store and use only throwaway scratch during a job, so you can run as many workers as you like against one bucket. The object store is swappable — any S3-compatible one works. **SeaweedFS** is the default so a fresh install works with zero setup; point pgbr at external object storage (S3, R2, Backblaze, Wasabi, …) from the settings page for durability and scale. Docker Compose is the easiest way to run everything together.
