@@ -1,9 +1,11 @@
-import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, FileClock, Loader2, XCircle } from "lucide-react";
 
 export default function getStatusIcon(status: string) {
   switch (status) {
     case "completed":
       return <CheckCircle2 className="size-4 text-green-500" />;
+    case "logged":
+      return <FileClock className="size-4 text-amber-500" />;
     case "failed":
       return <XCircle className="text-destructive size-4" />;
     case "running":

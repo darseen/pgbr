@@ -10,6 +10,12 @@ export default function getStatusBadge(status: string) {
       );
     case "failed":
       return <Badge variant="destructive">Failed</Badge>;
+    case "logged":
+      return (
+        <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+          Logged
+        </Badge>
+      );
     case "running":
       return (
         <Badge variant="secondary" className="bg-blue-100 text-blue-700">

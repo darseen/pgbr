@@ -1,5 +1,6 @@
 "use server";
 
+import { recordActivity } from "@/lib/activity";
 import { auth } from "@/lib/auth";
 import { db } from "@repo/db";
 import { backupJobsTable } from "@repo/db/schema";
@@ -54,8 +55,23 @@ export default async function deleteBackupJobs(ids: string[]) {
       );
     }
 
+    await recordActivity({
+      userId,
+      action: "backup.deleted",
+      summary:
+        backupJobs.length === 1
+          ? `Deleted backup of ${backupJobs[0].databaseName}`
+          : `Deleted ${backupJobs.length} backups`,
+      details: {
+        count: backupJobs.length,
+        databases: [...new Set(backupJobs.map((job) => job.databaseName))],
+        artifactsRemoved: storageKeys.length,
+      },
+    });
+
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/backups");
+    revalidatePath("/dashboard/activity");
 
     return { data: { backupJobsIds }, error: null };
   } catch (error) {

@@ -1,3 +1,4 @@
+export * from "./activity-events.js";
 export * from "./auth.js";
 export * from "./backup-jobs.js";
 export * from "./backup-schedules.js";

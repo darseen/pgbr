@@ -1,8 +1,10 @@
 "use server";
 
+import { recordActivity } from "@/lib/activity";
 import { auth } from "@/lib/auth";
 import { db } from "@repo/db";
 import {
+  activityEventsTable,
   backupJobsTable,
   backupSchedulesTable,
   databasesTable,
@@ -62,6 +64,17 @@ export default async function nuke() {
       await tx
         .delete(migrationJobsTable)
         .where(eq(migrationJobsTable.userId, userId));
+      await tx
+        .delete(activityEventsTable)
+        .where(eq(activityEventsTable.userId, userId));
+    });
+
+    // Written after the wipe, so the nuke itself is the one row left standing.
+    await recordActivity({
+      userId,
+      action: "data.nuked",
+      summary: "Nuked all data",
+      details: { artifactsRemoved: ownedKeys.length },
     });
 
     // Storage settings are intentionally preserved; only artifacts are removed.
@@ -69,6 +82,7 @@ export default async function nuke() {
     await store.deleteObjects(ownedKeys);
 
     revalidatePath("/dashboard");
+    revalidatePath("/dashboard/activity");
 
     return { data: null, error: null };
   } catch (error) {

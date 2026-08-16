@@ -1,4 +1,5 @@
 import {
+  Activity,
   ArrowDownUp,
   CalendarClock,
   FileArchive,
@@ -38,6 +39,12 @@ export const navMain: NavItem[] = [
     href: "/dashboard/migrate",
     icon: ArrowDownUp,
     description: "Copy one database into another",
+  },
+  {
+    name: "Activity",
+    href: "/dashboard/activity",
+    icon: Activity,
+    description: "Every job and change, with the flags each ran with",
   },
   {
     name: "Settings",

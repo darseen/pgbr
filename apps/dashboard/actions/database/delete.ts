@@ -1,5 +1,6 @@
 "use server";
 
+import { recordActivity } from "@/lib/activity";
 import { auth } from "@/lib/auth";
 import { db } from "@repo/db";
 import { databasesTable } from "@repo/db/schema";
@@ -19,11 +20,24 @@ export default async function deleteDatabase(id: string) {
   try {
     // The FK cascade takes the schedule rows with it, and a schedule row is
     // the whole schedule — there's nothing else to unregister.
-    await db
+    const [deleted] = await db
       .delete(databasesTable)
-      .where(and(eq(databasesTable.id, id), eq(databasesTable.userId, userId)));
+      .where(and(eq(databasesTable.id, id), eq(databasesTable.userId, userId)))
+      .returning({ id: databasesTable.id, name: databasesTable.name });
+
+    if (!deleted) {
+      return { data: null, error: { message: "Database not found" } };
+    }
+
+    await recordActivity({
+      userId,
+      action: "database.deleted",
+      summary: `Deleted database connection ${deleted.name}`,
+      details: { databaseId: deleted.id, databaseName: deleted.name },
+    });
 
     revalidatePath("/dashboard");
+    revalidatePath("/dashboard/activity");
     return { data: null, error: null };
   } catch (error) {
     console.error(error);

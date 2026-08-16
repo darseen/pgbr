@@ -1,5 +1,6 @@
 "use server";
 
+import { recordActivity } from "@/lib/activity";
 import { auth } from "@/lib/auth";
 import { db } from "@repo/db";
 import { backupSchedulesTable } from "@repo/db/schema";
@@ -32,7 +33,19 @@ export default async function deleteSchedule(id: string) {
       return { data: null, error: { message: "Schedule not found" } };
     }
 
+    await recordActivity({
+      userId,
+      action: "schedule.deleted",
+      summary: `Deleted schedule ${deleted.name}`,
+      details: {
+        scheduleId: deleted.id,
+        scheduleName: deleted.name,
+        cronExpression: deleted.cronExpression,
+      },
+    });
+
     revalidatePath("/dashboard/schedules");
+    revalidatePath("/dashboard/activity");
     return { data: null, error: null };
   } catch (error) {
     console.error(error);

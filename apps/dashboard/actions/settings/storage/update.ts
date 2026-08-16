@@ -1,5 +1,6 @@
 "use server";
 
+import { recordActivity } from "@/lib/activity";
 import { auth } from "@/lib/auth";
 import { storageSettingsSchema } from "@/lib/zod/storage";
 import { db, storageSettingsTable, STORAGE_SETTINGS_ID } from "@repo/db";
@@ -59,7 +60,20 @@ export default async function updateStorageSettings(input: unknown) {
       console.error("Failed to ensure bucket after settings update", bucketError);
     }
 
+    await recordActivity({
+      userId: session.user.id,
+      action: "storage.updated",
+      summary: `Updated storage settings (${v.bucket} at ${v.endpoint})`,
+      details: {
+        endpoint: v.endpoint,
+        region: v.region,
+        bucket: v.bucket,
+        forcePathStyle: v.forcePathStyle,
+      },
+    });
+
     revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/activity");
     return { data: null, error: null };
   } catch (error) {
     console.error(error);

@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { activityEventsTable } from "./activity-events.js";
 import { backupJobsTable } from "./backup-jobs.js";
 import { databasesTable } from "./databases.js";
 import { migrationJobsTable } from "./migration-jobs.js";
@@ -96,6 +97,7 @@ export const usersTableRelations = relations(usersTable, ({ many }) => ({
   backupJobs: many(backupJobsTable),
   restoreJobs: many(restoreJobsTable),
   migrationJobs: many(migrationJobsTable),
+  activityEvents: many(activityEventsTable),
 }));
 
 export const sessionRelations = relations(sessionsTable, ({ one }) => ({
