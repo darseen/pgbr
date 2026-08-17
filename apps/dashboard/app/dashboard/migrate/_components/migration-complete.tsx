@@ -9,10 +9,10 @@ interface Props {
 
 export default function MigrationComplete({ handleReset }: Props) {
   return (
-    <Card className="animate-in fade-in zoom-in-95 border-emerald-500/20 shadow-lg shadow-emerald-500/5 duration-500">
+    <Card className="animate-in fade-in zoom-in-95 border-success/20 shadow-success/5 shadow-lg duration-500">
       <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="mb-6 rounded-full bg-emerald-500/10 p-4">
-          <div className="flex size-20 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/20">
+        <div className="bg-success/10 mb-6 rounded-full p-4">
+          <div className="bg-success text-success-foreground shadow-success/20 flex size-20 items-center justify-center rounded-full shadow-lg">
             <CheckCircle2 className="size-10" />
           </div>
         </div>
@@ -34,7 +34,7 @@ export default function MigrationComplete({ handleReset }: Props) {
           <Link href="/dashboard" className="w-full sm:w-auto">
             <Button
               size="lg"
-              className="w-full bg-emerald-600 text-white hover:bg-emerald-700 sm:w-auto"
+              className="bg-success text-success-foreground hover:bg-success/90 w-full sm:w-auto"
             >
               Back to Dashboard
             </Button>

@@ -110,6 +110,7 @@ export default async function SchedulesPage({ searchParams }: Props) {
       <PageHeader
         title="Schedules"
         description="Recurring backups that run without you"
+        icon={CalendarClock}
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -124,6 +125,7 @@ export default async function SchedulesPage({ searchParams }: Props) {
           value={enabledSchedules.length}
           hint={`${schedules.length - enabledSchedules.length} paused`}
           icon={CalendarCheck}
+          tone={enabledSchedules.length > 0 ? "success" : "default"}
         />
         <StatCard
           label="Next Run"

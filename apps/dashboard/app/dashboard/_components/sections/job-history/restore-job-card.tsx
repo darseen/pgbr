@@ -10,30 +10,30 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import SeparatorWithText from "@/components/ui/separator-with-text";
+import StatusBadge from "@/components/status-badge";
+import { parseJobTimestamp } from "@/utils";
 import { RestoreJob } from "@repo/db/schema";
 import { formatDistanceToNow } from "date-fns";
-import getStatusBadge from "./get-status-badge";
-import getStatusIcon from "./get-status-icon";
 
 interface Props {
   job: RestoreJob;
 }
 
 export default function RestoreJobCard({ job }: Props) {
+  const startedAt = parseJobTimestamp(job.startedAt);
+  const completedAt = parseJobTimestamp(job.completedAt);
+
   return (
     <Card className="hover:border-primary border transition-colors">
       <CardHeader>
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5">{getStatusIcon(job.status)}</div>
-          <div className="min-w-0 flex-1">
-            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-              <span>{job.databaseName}</span>
-              {getStatusBadge(job.status)}
-            </CardTitle>
-            <CardDescription className="mt-1 break-all">
-              From: {job.storageKey}
-            </CardDescription>
-          </div>
+        <div className="min-w-0 flex-1">
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            <span className="truncate">{job.databaseName}</span>
+            <StatusBadge status={job.status} />
+          </CardTitle>
+          <CardDescription className="mt-1 break-all">
+            From: {job.storageKey}
+          </CardDescription>
         </div>
       </CardHeader>
 
@@ -54,18 +54,14 @@ export default function RestoreJobCard({ job }: Props) {
 
         <Separator className="mt-4" />
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
-          <span>
-            Started{" "}
-            {formatDistanceToNow(new Date(job.startedAt + "Z"), {
-              addSuffix: true,
-            })}
-          </span>
-          {job.completedAt && (
+          {startedAt && (
             <span>
-              Completed{" "}
-              {formatDistanceToNow(new Date(job.completedAt), {
-                addSuffix: true,
-              })}
+              Started {formatDistanceToNow(startedAt, { addSuffix: true })}
+            </span>
+          )}
+          {completedAt && (
+            <span>
+              Completed {formatDistanceToNow(completedAt, { addSuffix: true })}
             </span>
           )}
         </div>

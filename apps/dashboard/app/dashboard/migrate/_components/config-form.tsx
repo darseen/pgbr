@@ -108,7 +108,7 @@ export default function ConfigForm({
         <Card className="border-muted flex-1 shadow-sm transition-shadow hover:shadow-md">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-orange-500/10 p-2 text-orange-600">
+              <div className="bg-warning/10 text-warning rounded-lg p-2">
                 <DatabaseIcon className="size-5" />
               </div>
               <div>
@@ -191,7 +191,7 @@ export default function ConfigForm({
         <Card className="border-muted flex-1 shadow-sm transition-shadow hover:shadow-md">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-blue-500/10 p-2 text-blue-600">
+              <div className="bg-info/10 text-info rounded-lg p-2">
                 <DatabaseIcon className="size-5" />
               </div>
               <div>

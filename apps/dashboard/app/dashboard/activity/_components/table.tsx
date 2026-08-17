@@ -25,19 +25,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import ColumnHeader from "@/components/data-table/column-header";
+import DataTablePagination from "@/components/data-table/pagination";
+import StatusBadge from "@/components/status-badge";
+import TimeCell from "@/components/time-cell";
+import TooltipButton from "@/components/tooltip-button";
+import EmptyState from "@/components/ui/empty-state";
 import type { ActivityItem } from "@/types";
 import {
   ColumnDef,
   ColumnFiltersState,
+  SortingState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { format, formatDistanceToNow } from "date-fns";
 import { Activity, Search, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
-import getStatusBadge from "../../_components/sections/job-history/get-status-badge";
 import ClearActivityDialog from "./clear-dialog";
 import DeleteActivityDialog from "./delete-dialog";
 import ActivityDetailsDialog from "./details-dialog";
@@ -45,11 +53,25 @@ import { kindMeta } from "./kind-meta";
 
 interface Props {
   items: ActivityItem[];
+  initialStatus?: string | null;
+  initialKind?: string | null;
 }
 
-export default function ActivityTable({ items }: Props) {
+export default function ActivityTable({
+  items,
+  initialStatus,
+  initialKind,
+}: Props) {
   const [globalFilter, setGlobalFilter] = useState("");
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() =>
+    [
+      initialStatus ? { id: "status", value: initialStatus } : null,
+      initialKind ? { id: "kind", value: initialKind } : null,
+    ].filter((filter) => filter !== null),
+  );
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "timestamp", desc: true },
+  ]);
   const [rowSelection, setRowSelection] = useState({});
 
   const [detailsItem, setDetailsItem] = useState<ActivityItem | null>(null);
@@ -84,7 +106,7 @@ export default function ActivityTable({ items }: Props) {
     },
     {
       accessorKey: "kind",
-      header: "Type",
+      header: ({ column }) => <ColumnHeader column={column} title="Type" />,
       cell: ({ row }) => {
         const meta = kindMeta[row.original.kind];
         const Icon = meta.icon;
@@ -98,7 +120,7 @@ export default function ActivityTable({ items }: Props) {
     },
     {
       accessorKey: "title",
-      header: "Activity",
+      header: ({ column }) => <ColumnHeader column={column} title="Activity" />,
       cell: ({ row }) => (
         <div className="max-w-xs min-w-0 sm:max-w-md">
           <span className="block truncate font-medium">
@@ -114,36 +136,25 @@ export default function ActivityTable({ items }: Props) {
     },
     {
       accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => getStatusBadge(row.original.status),
+      header: ({ column }) => <ColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
     },
     {
       accessorKey: "timestamp",
-      header: "When",
-      cell: ({ row }) => {
-        const date = new Date(row.original.timestamp);
-        return (
-          <div className="block">
-            <span className="text-muted-foreground block text-sm">
-              {format(date, "MMM d, yyyy HH:mm")}
-            </span>
-            <span className="text-muted-foreground block text-xs">
-              {formatDistanceToNow(date, { addSuffix: true })}
-            </span>
-          </div>
-        );
-      },
+      header: ({ column }) => <ColumnHeader column={column} title="When" />,
+      cell: ({ row }) => <TimeCell value={row.original.timestamp} />,
     },
     {
       id: "actions",
       header: () => <div className="text-right">Actions</div>,
+      enableSorting: false,
       cell: ({ row }) => (
         <div className="flex items-center justify-end">
-          <Button
+          <TooltipButton
+            label="Delete activity"
             variant="ghost"
-            size="icon"
-            className="text-destructive hover:text-destructive"
-            title="Delete activity"
+            size="icon-sm"
+            className="hover:bg-destructive/10 hover:text-destructive text-destructive"
             onClick={(e) => {
               e.stopPropagation();
               setRowToDelete(row.original);
@@ -151,7 +162,7 @@ export default function ActivityTable({ items }: Props) {
             }}
           >
             <Trash2 className="size-4" />
-          </Button>
+          </TooltipButton>
         </div>
       ),
     },
@@ -164,12 +175,17 @@ export default function ActivityTable({ items }: Props) {
     getRowId: (row) => `${row.kind}:${row.id}`,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
+    onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
+    initialState: { pagination: { pageSize: 25 } },
     state: {
       globalFilter,
       columnFilters,
+      sorting,
       rowSelection,
     },
     globalFilterFn: (row, columnId, filterValue) => {
@@ -185,6 +201,7 @@ export default function ActivityTable({ items }: Props) {
 
   const selected = table.getSelectedRowModel().rows.map((row) => row.original);
   const pendingDeletion = rowToDelete ? [rowToDelete] : selected;
+  const hasFilters = Boolean(globalFilter) || columnFilters.length > 0;
 
   return (
     <>
@@ -278,15 +295,35 @@ export default function ActivityTable({ items }: Props) {
           </div>
 
           {table.getRowModel().rows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Activity className="text-muted-foreground/50 mb-4 size-12" />
-              <h3 className="mb-1 text-lg font-medium">No activity found</h3>
-              <p className="text-muted-foreground">
-                {globalFilter || columnFilters.length > 0
-                  ? "Try adjusting your filters"
-                  : "Run a backup, restore, or migration to get started"}
-              </p>
-            </div>
+            hasFilters ? (
+              <EmptyState
+                icon={Search}
+                title="No matching activity"
+                description="Nothing matches the current search and filters."
+                action={
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setGlobalFilter("");
+                      setColumnFilters([]);
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={Activity}
+                title="Nothing has happened yet"
+                description="Backups, restores, migrations, and the changes you make all land here as soon as they run."
+                action={
+                  <Button asChild>
+                    <Link href="/dashboard">Go to your databases</Link>
+                  </Button>
+                }
+              />
+            )
           ) : (
             <div className="rounded-md border">
               <Table>
@@ -349,6 +386,14 @@ export default function ActivityTable({ items }: Props) {
                 </TableBody>
               </Table>
             </div>
+          )}
+
+          {table.getRowModel().rows.length > 0 && (
+            <DataTablePagination
+              table={table}
+              noun="entry"
+              nounPlural="entries"
+            />
           )}
         </CardContent>
       </Card>

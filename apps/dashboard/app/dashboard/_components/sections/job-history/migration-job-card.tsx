@@ -13,8 +13,8 @@ import SeparatorWithText from "@/components/ui/separator-with-text";
 import { MigrationJob } from "@repo/db/schema"; // Update this path to match where your schema is exported
 import { formatDistanceToNow } from "date-fns";
 import { ArrowRight } from "lucide-react";
-import getStatusBadge from "./get-status-badge";
-import getStatusIcon from "./get-status-icon";
+import StatusBadge from "@/components/status-badge";
+import { parseJobTimestamp } from "@/utils";
 
 interface Props {
   job: MigrationJob;
@@ -22,27 +22,31 @@ interface Props {
 }
 
 export default function MigrationJobCard({ job, onClick }: Props) {
+  const startedAt = parseJobTimestamp(job.startedAt);
+  const completedAt = parseJobTimestamp(job.completedAt);
+
   return (
     <Card
       className="hover:border-primary border transition-colors hover:cursor-pointer"
       onClick={() => onClick?.(job)}
     >
       <CardHeader>
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5">{getStatusIcon(job.status)}</div>
-          <div className="min-w-0 flex-1">
-            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-              <span className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate">
                 {job.sourceDatabaseName || "Unknown Source"}
-                <ArrowRight className="text-muted-foreground h-4 w-4" />
+              </span>
+              <ArrowRight className="text-muted-foreground size-4 shrink-0" />
+              <span className="truncate">
                 {job.targetDatabaseName || "Unknown Target"}
               </span>
-              {getStatusBadge(job.status)}
-            </CardTitle>
-            <CardDescription className="mt-1 break-all">
-              Job ID: {job.id}
-            </CardDescription>
-          </div>
+            </span>
+            <StatusBadge status={job.status} />
+          </CardTitle>
+          <CardDescription className="mt-1 break-all">
+            Job ID: {job.id}
+          </CardDescription>
         </div>
       </CardHeader>
 
@@ -85,20 +89,17 @@ export default function MigrationJobCard({ job, onClick }: Props) {
 
         <div className="text-muted-foreground flex items-center justify-between gap-2 text-xs">
           <div className="flex items-center gap-2">
-            <span>
-              Started{" "}
-              {formatDistanceToNow(new Date(job.startedAt + "Z"), {
-                addSuffix: true,
-              })}
-            </span>
-            {job.completedAt && (
+            {startedAt && (
+              <span>
+                Started {formatDistanceToNow(startedAt, { addSuffix: true })}
+              </span>
+            )}
+            {completedAt && (
               <>
                 <span>•</span>
                 <span>
                   Completed{" "}
-                  {formatDistanceToNow(new Date(job.completedAt ?? "" + "Z"), {
-                    addSuffix: true,
-                  })}
+                  {formatDistanceToNow(completedAt, { addSuffix: true })}
                 </span>
               </>
             )}

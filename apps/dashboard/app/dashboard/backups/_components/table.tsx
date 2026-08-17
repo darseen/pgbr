@@ -26,31 +26,44 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BackupJob } from "@repo/db/schema";
+import ColumnHeader from "@/components/data-table/column-header";
+import DataTablePagination from "@/components/data-table/pagination";
+import StatusBadge from "@/components/status-badge";
+import TimeCell from "@/components/time-cell";
+import TooltipButton from "@/components/tooltip-button";
+import EmptyState from "@/components/ui/empty-state";
 import { formatFileSize } from "@/utils";
+import { BackupJob } from "@repo/db/schema";
 import {
   ColumnDef,
   ColumnFiltersState,
+  SortingState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { format, formatDistanceToNow } from "date-fns";
-import { Download, FileArchive, Search, Trash2 } from "lucide-react";
+import { Download, FileArchive, Plus, Search, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
-import getStatusBadge from "../../_components/sections/job-history/get-status-badge";
-import getStatusIcon from "../../_components/sections/job-history/get-status-icon";
 import CopyablePath from "./copyable-path";
 import DeleteBackupDialog from "./delete-dialog";
 
 interface Props {
   backupJobs: BackupJob[];
+  initialStatus?: string | null;
 }
 
-export default function BackupsTable({ backupJobs }: Props) {
+export default function BackupsTable({ backupJobs, initialStatus }: Props) {
   const [globalFilter, setGlobalFilter] = useState("");
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
+    initialStatus ? [{ id: "status", value: initialStatus }] : [],
+  );
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "startedAt", desc: true },
+  ]);
   const [rowSelection, setRowSelection] = useState({});
 
   const [isDeleting, setIsDeleting] = useState(false);
@@ -97,49 +110,40 @@ export default function BackupsTable({ backupJobs }: Props) {
     },
     {
       accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        return (
-          <div className="flex items-center gap-2">
-            {getStatusIcon(status)}
-            <span className="inline">{getStatusBadge(status)}</span>
-          </div>
-        );
-      },
+      header: ({ column }) => <ColumnHeader column={column} title="Status" />,
+      cell: ({ row }) => <StatusBadge status={row.getValue("status")} />,
     },
     {
       accessorKey: "databaseName",
-      header: "Database",
+      header: ({ column }) => <ColumnHeader column={column} title="Database" />,
       cell: ({ row }) => (
         <span className="font-medium">{row.getValue("databaseName")}</span>
       ),
     },
     {
       accessorKey: "storageKey",
-      header: () => <span className="table-cell">Storage Key</span>,
+      header: "Storage Key",
+      enableSorting: false,
       cell: ({ row }) => (
         <CopyablePath path={row.getValue("storageKey") as string} />
       ),
     },
     {
       id: "size",
-      accessorFn: (row) => row.size,
-      header: () => <span className="table-cell">Size</span>,
-      cell: ({ row }) => {
-        const status = row.getValue("status");
-        const size = Number(row.original.size) || 0;
-        return (
-          <span className="inline">
-            {status === "completed" ? formatFileSize(size) : "-"}
-          </span>
-        );
-      },
+      accessorFn: (row) => Number(row.size) || 0,
+      header: ({ column }) => <ColumnHeader column={column} title="Size" />,
+      cell: ({ row }) => (
+        <span className="tabular-nums">
+          {row.original.status === "completed"
+            ? formatFileSize(Number(row.original.size) || 0)
+            : "—"}
+        </span>
+      ),
     },
     {
       id: "format",
       accessorFn: (row) => row.flags?.format,
-      header: () => <span className="table-cell">Format</span>,
+      header: ({ column }) => <ColumnHeader column={column} title="Format" />,
       cell: ({ row }) => (
         <Badge variant="outline" className="inline-flex text-xs">
           {(row.getValue("format") as string) || "unknown"}
@@ -148,43 +152,32 @@ export default function BackupsTable({ backupJobs }: Props) {
     },
     {
       accessorKey: "startedAt",
-      header: () => <span className="table-cell">Created</span>,
-      cell: ({ row }) => {
-        const date = new Date((row.getValue("startedAt") + "Z") as string);
-        return (
-          <div className="block">
-            <span className="text-muted-foreground block text-sm">
-              {format(date, "MMM d, yyyy")}
-            </span>
-            <span className="text-muted-foreground block text-xs">
-              {formatDistanceToNow(date, { addSuffix: true })}
-            </span>
-          </div>
-        );
-      },
+      header: ({ column }) => <ColumnHeader column={column} title="Created" />,
+      cell: ({ row }) => <TimeCell value={row.getValue("startedAt")} />,
     },
     {
       id: "actions",
       header: () => <div className="text-right">Actions</div>,
+      enableSorting: false,
       cell: ({ row }) => {
         const job = row.original;
         return (
           <div className="flex items-center justify-end gap-1">
             {job.status === "completed" && (
-              <Button
+              <TooltipButton
+                label="Download backup"
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 onClick={() => handleDownload(job.id)}
-                title="Download backup"
               >
                 <Download className="size-4" />
-              </Button>
+              </TooltipButton>
             )}
-            <Button
+            <TooltipButton
+              label="Delete backup"
               variant="ghost"
-              size="icon"
-              className="text-destructive hover:text-destructive"
-              title="Delete backup"
+              size="icon-sm"
+              className="hover:bg-destructive/10 hover:text-destructive text-destructive"
               onClick={() => {
                 setJobToDelete(job.id);
                 setOpenDeleteDialog(true);
@@ -192,7 +185,7 @@ export default function BackupsTable({ backupJobs }: Props) {
               }}
             >
               <Trash2 className="size-4" />
-            </Button>
+            </TooltipButton>
           </div>
         );
       },
@@ -205,12 +198,17 @@ export default function BackupsTable({ backupJobs }: Props) {
     columns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
+    onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
+    initialState: { pagination: { pageSize: 10 } },
     state: {
       globalFilter,
       columnFilters,
+      sorting,
       rowSelection,
     },
     globalFilterFn: (row, columnId, filterValue) => {
@@ -223,6 +221,7 @@ export default function BackupsTable({ backupJobs }: Props) {
 
   const selectedRows = table.getSelectedRowModel().rows;
   const selectedIds = new Set(selectedRows.map((row) => row.original.id));
+  const hasFilters = Boolean(globalFilter) || columnFilters.length > 0;
 
   const setGlobalSelectedBackups = (newSet: Set<string>) => {
     if (newSet instanceof Set && newSet.size === 0) {
@@ -320,15 +319,43 @@ export default function BackupsTable({ backupJobs }: Props) {
 
           {/* Table */}
           {table.getRowModel().rows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <FileArchive className="text-muted-foreground/50 mb-4 size-12" />
-              <h3 className="mb-1 text-lg font-medium">No backups found</h3>
-              <p className="text-muted-foreground">
-                {globalFilter || columnFilters.length > 0
-                  ? "Try adjusting your filters"
-                  : "Create a backup from the dashboard to get started"}
-              </p>
-            </div>
+            hasFilters ? (
+              <EmptyState
+                icon={Search}
+                title="No matching backups"
+                description="No backup matches the current search and filters."
+                action={
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setGlobalFilter("");
+                      setColumnFilters([]);
+                    }}
+                  >
+                    Clear filters
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon={FileArchive}
+                title="No backups yet"
+                description="Backups appear here once you run one. Start from a database on the overview, or set up a schedule to run them automatically."
+                action={
+                  <>
+                    <Button asChild>
+                      <Link href="/dashboard">
+                        <Plus className="size-4" />
+                        Run a backup
+                      </Link>
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <Link href="/dashboard/schedules">Create a schedule</Link>
+                    </Button>
+                  </>
+                }
+              />
+            )
           ) : (
             <div className="rounded-md border">
               <Table>
@@ -379,6 +406,10 @@ export default function BackupsTable({ backupJobs }: Props) {
                 </TableBody>
               </Table>
             </div>
+          )}
+
+          {table.getRowModel().rows.length > 0 && (
+            <DataTablePagination table={table} noun="backup" />
           )}
         </CardContent>
       </Card>

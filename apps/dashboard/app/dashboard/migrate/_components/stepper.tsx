@@ -150,7 +150,7 @@ export default function Stepper({ databases }: Props) {
   }
 
   return (
-    <main className="container mx-auto max-w-4xl px-4 py-10">
+    <div>
       <StepsHeader migration={migration} />
 
       {migration.currentStep === "configure" && (
@@ -180,6 +180,6 @@ export default function Stepper({ databases }: Props) {
       {migration.currentStep === "complete" && (
         <MigrationComplete handleReset={handleReset} />
       )}
-    </main>
+    </div>
   );
 }

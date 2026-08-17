@@ -36,7 +36,7 @@ export default function MigrationProgress({ migration, handleReset }: Props) {
           {status === "failed" ? (
             <AlertCircle className="text-destructive size-5" />
           ) : status === "completed" ? (
-            <CheckCircle2 className="size-5 text-emerald-500" />
+            <CheckCircle2 className="text-success size-5" />
           ) : (
             <Loader2 className="text-primary size-5 animate-spin" />
           )}
@@ -69,7 +69,7 @@ export default function MigrationProgress({ migration, handleReset }: Props) {
               status === "running"
                 ? "bg-primary text-primary-foreground shadow-md"
                 : status === "completed"
-                  ? "bg-emerald-500 text-white"
+                  ? "bg-success text-success-foreground"
                   : status === "failed"
                     ? "bg-destructive text-destructive-foreground"
                     : "bg-muted text-muted-foreground"
@@ -103,9 +103,7 @@ export default function MigrationProgress({ migration, handleReset }: Props) {
                       : "secondary"
                 }
                 className={
-                  status === "completed"
-                    ? "bg-emerald-500 hover:bg-emerald-600"
-                    : ""
+                  status === "completed" ? "bg-success hover:bg-success/90" : ""
                 }
               >
                 {status === "running"

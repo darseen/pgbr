@@ -11,16 +11,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import pingDatabase from "@/actions/database/ping";
+import TooltipButton from "@/components/tooltip-button";
+import { cn } from "@/lib/utils";
 import { BackupJob, Database } from "@repo/db/schema";
 import {
   Activity,
   CalendarClock,
   CalendarDays,
+  CheckCircle2,
   History,
   Loader2,
   Pencil,
   Server,
   Trash2,
+  XCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { Dispatch, SetStateAction, useState } from "react";
@@ -88,26 +92,38 @@ export default function DatabaseCard({
             </CardTitle>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <Button
-              variant={
-                pingStatus === "idle" || pingStatus === "loading"
-                  ? "ghost"
-                  : "default"
+            <TooltipButton
+              label={
+                pingStatus === "success"
+                  ? "Connection OK"
+                  : pingStatus === "error"
+                    ? "Connection failed"
+                    : "Test connection"
               }
+              variant="ghost"
               size="icon-sm"
               onClick={handlePing}
               disabled={pingStatus === "loading"}
-              className={` ${pingStatus === "success" ? "bg-green-500 text-white hover:bg-green-600" : ""} ${pingStatus === "error" ? "bg-red-500 text-white hover:bg-red-600" : ""} `}
+              className={cn(
+                pingStatus === "success" &&
+                  "bg-success/15 text-success hover:bg-success/25 hover:text-success",
+                pingStatus === "error" &&
+                  "bg-destructive/15 text-destructive hover:bg-destructive/25 hover:text-destructive",
+              )}
             >
               {pingStatus === "loading" ? (
                 <Loader2 className="size-4 animate-spin" />
+              ) : pingStatus === "success" ? (
+                <CheckCircle2 className="size-4" />
+              ) : pingStatus === "error" ? (
+                <XCircle className="size-4" />
               ) : (
                 <Activity className="size-4" />
               )}
-              <span className="sr-only">Ping database</span>
-            </Button>
+            </TooltipButton>
 
-            <Button
+            <TooltipButton
+              label="Edit database"
               variant="ghost"
               size="icon-sm"
               onClick={() => {
@@ -116,20 +132,20 @@ export default function DatabaseCard({
               }}
             >
               <Pencil className="size-4" />
-              <span className="sr-only">Edit database</span>
-            </Button>
+            </TooltipButton>
 
-            <Button
+            <TooltipButton
+              label="Delete database"
               variant="ghost"
               size="icon-sm"
+              className="hover:bg-destructive/10 hover:text-destructive text-destructive"
               onClick={() => {
                 setSelectedDatabase(database);
                 setOpenDeleteDialog(true);
               }}
             >
-              <Trash2 className="text-destructive size-4" />
-              <span className="sr-only">Delete database</span>
-            </Button>
+              <Trash2 className="size-4" />
+            </TooltipButton>
           </div>
         </div>
 

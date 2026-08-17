@@ -15,8 +15,7 @@ import type { ActivityItem } from "@/types";
 import { formatFileSize } from "@/utils";
 import { format, formatDistanceToNow } from "date-fns";
 import { ReactNode } from "react";
-import getStatusBadge from "../../_components/sections/job-history/get-status-badge";
-import getStatusIcon from "../../_components/sections/job-history/get-status-icon";
+import StatusBadge from "@/components/status-badge";
 import { kindMeta } from "./kind-meta";
 
 interface Props {
@@ -38,7 +37,7 @@ export default function ActivityDetailsDialog({ item, open, setOpen }: Props) {
           <DialogTitle className="flex flex-wrap items-center gap-2 pr-6 text-base">
             <Icon className={`size-4 shrink-0 ${meta.className}`} />
             <span className="min-w-0 wrap-break-word">{item.title}</span>
-            {getStatusBadge(item.status)}
+            <StatusBadge status={item.status} />
           </DialogTitle>
           <DialogDescription className="break-all">
             {item.subtitle ?? meta.label}
@@ -83,10 +82,7 @@ export default function ActivityDetailsDialog({ item, open, setOpen }: Props) {
                   <Row label="Size">{formatFileSize(item.size)}</Row>
                 )}
                 <Row label="Status">
-                  <span className="flex items-center gap-2">
-                    {getStatusIcon(item.status)}
-                    {item.status}
-                  </span>
+                  <StatusBadge status={item.status} />
                 </Row>
               </dl>
             </div>

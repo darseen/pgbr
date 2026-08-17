@@ -22,9 +22,9 @@ export default function Error({
       <Card className="w-full max-w-md text-center">
         <CardHeader>
           <div className="mb-4 flex items-center justify-center">
-            <AlertTriangle className="h-12 w-12 text-red-500" />
+            <AlertTriangle className="text-destructive h-12 w-12" />
           </div>
-          <CardTitle className="text-xl text-red-600">
+          <CardTitle className="text-destructive text-xl">
             Something went wrong
           </CardTitle>
           <CardDescription>

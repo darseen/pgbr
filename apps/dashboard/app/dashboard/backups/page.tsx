@@ -3,7 +3,7 @@ import { backupJobsTable } from "@repo/db/schema";
 import { auth } from "@/lib/auth";
 import { formatFileSize } from "@/utils";
 import { desc, eq } from "drizzle-orm";
-import { FileArchive, HardDrive, Loader2 } from "lucide-react";
+import { CircleAlert, FileArchive, HardDrive, Loader2 } from "lucide-react";
 import { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -15,12 +15,18 @@ export const metadata: Metadata = {
   title: "Backups",
 };
 
-export default async function BackupsPage() {
+interface Props {
+  searchParams: Promise<{ status?: string }>;
+}
+
+export default async function BackupsPage({ searchParams }: Props) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
   if (!session) redirect("/");
   const userId = session.user.id;
+
+  const { status } = await searchParams;
 
   const backupJobs = await db
     .select()
@@ -35,14 +41,18 @@ export default async function BackupsPage() {
     0,
   );
 
+  const running = backupJobs.filter((j) => j.status === "running").length;
+  const failed = backupJobs.filter((j) => j.status === "failed").length;
+
   return (
     <PageShell>
       <PageHeader
         title="Backups"
         description="Every backup artifact this instance has produced"
+        icon={FileArchive}
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Backups"
           value={backupJobs.length}
@@ -57,14 +67,23 @@ export default async function BackupsPage() {
         />
         <StatCard
           label="Running Now"
-          value={backupJobs.filter((j) => j.status === "running").length}
-          hint="Jobs in progress"
+          value={running}
+          hint={running > 0 ? "Jobs in progress" : "Nothing running"}
           icon={Loader2}
-          className="sm:col-span-2 lg:col-span-1"
+          tone={running > 0 ? "info" : "default"}
+          spin={running > 0}
+        />
+        <StatCard
+          label="Failed"
+          value={failed}
+          hint={failed > 0 ? "Show failed backups" : "All clear"}
+          icon={CircleAlert}
+          tone={failed > 0 ? "danger" : "success"}
+          href="/dashboard/backups?status=failed"
         />
       </div>
 
-      <BackupsTable backupJobs={backupJobs} />
+      <BackupsTable backupJobs={backupJobs} initialStatus={status ?? null} />
     </PageShell>
   );
 }

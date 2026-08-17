@@ -28,7 +28,7 @@ export default async function Layout({
           email: session.user.email,
         }}
       />
-      <SidebarInset className="min-w-0">
+      <SidebarInset className="app-canvas min-w-0">
         <Header />
         <LiveRefresher />
         <div className="flex min-w-0 flex-1 flex-col">{children}</div>

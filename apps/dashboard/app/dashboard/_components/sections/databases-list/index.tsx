@@ -1,7 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import EmptyState from "@/components/ui/empty-state";
 import { BackupJob, Database } from "@repo/db/schema";
 import { Plus, Server } from "lucide-react";
 import { useState } from "react";
@@ -22,12 +23,12 @@ export default function DatabasesList({ backupJobs, databases }: Props) {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
 
   return (
-    <section className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Databases</h1>
-          <p className="text-muted-foreground">
-            Manage your PostgreSQL databases
+    <section className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold tracking-tight">Databases</h2>
+          <p className="text-muted-foreground text-sm">
+            Connections pgbr can back up, restore, and migrate
           </p>
         </div>
         <Button onClick={() => setOpenAddDatabaseDialog(true)}>
@@ -38,16 +39,17 @@ export default function DatabasesList({ backupJobs, databases }: Props) {
 
       {databases.length === 0 ? (
         <Card className="border-dashed shadow-none">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="bg-muted/50 mb-4 rounded-full p-4">
-              <Server className="text-muted-foreground size-8" />
-            </div>
-            <h3 className="mb-1 text-lg font-semibold">No databases yet</h3>
-            <p className="text-muted-foreground mb-6 max-w-sm text-sm">
-              Add your first PostgreSQL database to start managing automated
-              backups and restores.
-            </p>
-          </CardContent>
+          <EmptyState
+            icon={Server}
+            title="No databases yet"
+            description="Add your first PostgreSQL connection to start running backups, restores, and migrations."
+            action={
+              <Button onClick={() => setOpenAddDatabaseDialog(true)}>
+                <Plus className="size-4" />
+                Add your first database
+              </Button>
+            }
+          />
         </Card>
       ) : (
         <div className="grid gap-6">

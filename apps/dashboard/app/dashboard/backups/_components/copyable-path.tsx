@@ -26,7 +26,7 @@ export default function CopyablePath({ path }: { path: string }) {
     >
       <code className="truncate font-mono text-xs">{path}</code>
       {copied ? (
-        <Check className="size-3 shrink-0 text-green-500" />
+        <Check className="text-success size-3 shrink-0" />
       ) : (
         <Copy className="text-muted-foreground size-3 shrink-0" />
       )}

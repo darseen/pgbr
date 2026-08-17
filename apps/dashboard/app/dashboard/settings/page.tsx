@@ -5,7 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { AlertTriangle, Bomb, HardDrive, Trash2 } from "lucide-react";
+import { AlertTriangle, Bomb, HardDrive, Settings, Trash2 } from "lucide-react";
 import { Metadata } from "next";
 import { ReactNode } from "react";
 import getStorageStatus from "@/actions/settings/storage/status";
@@ -27,6 +27,7 @@ export default async function Page() {
       <PageHeader
         title="Settings"
         description="Manage application settings and data"
+        icon={Settings}
       />
 
       <div className="space-y-6">

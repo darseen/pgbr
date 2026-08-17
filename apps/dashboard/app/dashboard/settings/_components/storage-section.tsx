@@ -37,8 +37,10 @@ export default function StorageSection({ status }: StorageSectionProps) {
     return (
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <CheckCircle2 className="size-5 text-green-600 dark:text-green-500" />
-          <span className="font-medium">Object storage is configured and reachable</span>
+          <CheckCircle2 className="text-success size-5" />
+          <span className="font-medium">
+            Object storage is configured and reachable
+          </span>
           <Badge variant="secondary">
             {status.source === "environment"
               ? "Environment variables"
@@ -57,7 +59,11 @@ export default function StorageSection({ status }: StorageSectionProps) {
           />
         </dl>
 
-        <Button variant="outline" size="sm" onClick={() => setReconfigure(true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setReconfigure(true)}
+        >
           <Pencil className="mr-2 size-4" />
           Reconfigure
         </Button>

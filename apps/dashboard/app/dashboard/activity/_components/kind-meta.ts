@@ -17,21 +17,21 @@ export const kindMeta: Record<ActivityKind, KindMeta> = {
   backup: {
     label: "Backup",
     icon: Download,
-    className: "text-emerald-600 dark:text-emerald-400",
+    className: "text-success",
   },
   restore: {
     label: "Restore",
     icon: Upload,
-    className: "text-sky-600 dark:text-sky-400",
+    className: "text-info",
   },
   migration: {
     label: "Migration",
     icon: ArrowDownUp,
-    className: "text-violet-600 dark:text-violet-400",
+    className: "text-primary",
   },
   event: {
     label: "Action",
     icon: Wrench,
-    className: "text-amber-600 dark:text-amber-400",
+    className: "text-warning",
   },
 };

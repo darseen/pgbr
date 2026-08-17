@@ -1,14 +1,24 @@
+import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import EmptyState from "@/components/ui/empty-state";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BackupJob, MigrationJob, RestoreJob } from "@repo/db/schema";
-import { ArrowDownUp, Download, Upload } from "lucide-react";
+import {
+  ArrowDownUp,
+  ArrowRight,
+  Download,
+  History,
+  Upload,
+} from "lucide-react";
+import Link from "next/link";
 import BackupJobCard from "./backup-job-card";
 import MigrationJobCard from "./migration-job-card";
 import RestoreJobItem from "./restore-job-card";
@@ -37,16 +47,12 @@ export default function JobHistory({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-muted-foreground flex flex-col items-center justify-center py-12 text-center">
-              <div className="mb-4 flex gap-3">
-                <Download className="size-6 opacity-50" />
-                <Upload className="size-6 opacity-50" />
-              </div>
-              <p className="text-foreground font-medium">No jobs yet</p>
-              <p className="text-sm">
-                Run a backup, restore, or migrate to see history
-              </p>
-            </div>
+            <EmptyState
+              icon={History}
+              title="No jobs yet"
+              description="Run a backup from a database above, or migrate one database into another, and the run shows up here."
+              className="py-10"
+            />
           </CardContent>
         </Card>
       ) : (
@@ -56,6 +62,14 @@ export default function JobHistory({
             <CardDescription>
               Recent backup and restore operations
             </CardDescription>
+            <CardAction>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/dashboard/activity">
+                  View all
+                  <ArrowRight className="size-3.5" />
+                </Link>
+              </Button>
+            </CardAction>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="backups" className="w-full">
@@ -75,7 +89,7 @@ export default function JobHistory({
               </TabsList>
 
               <TabsContent value="backups" className="mt-0">
-                <ScrollArea className="h-100 pr-4 xl:h-[calc(100svh-22rem)]">
+                <ScrollArea className="h-100 pr-4 xl:h-[calc(100svh-30rem)]">
                   <div className="space-y-3">
                     {backupJobs.length > 0 ? (
                       backupJobs.map((job) => (
@@ -91,7 +105,7 @@ export default function JobHistory({
               </TabsContent>
 
               <TabsContent value="restores" className="mt-0">
-                <ScrollArea className="h-100 pr-4 xl:h-[calc(100svh-22rem)]">
+                <ScrollArea className="h-100 pr-4 xl:h-[calc(100svh-30rem)]">
                   <div className="space-y-3">
                     {restoreJobs.length > 0 ? (
                       restoreJobs.map((job) => (
@@ -107,7 +121,7 @@ export default function JobHistory({
               </TabsContent>
 
               <TabsContent value="migrations" className="mt-0">
-                <ScrollArea className="h-100 pr-4 xl:h-[calc(100svh-22rem)]">
+                <ScrollArea className="h-100 pr-4 xl:h-[calc(100svh-30rem)]">
                   <div className="space-y-3">
                     {migrationJobs.length > 0 ? (
                       migrationJobs.map((job) => (
