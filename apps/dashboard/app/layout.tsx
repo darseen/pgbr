@@ -47,8 +47,8 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col">
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="dark"
+          enableSystem={false}
           disableTransitionOnChange
         >
           <TooltipProvider>{children}</TooltipProvider>
