@@ -152,6 +152,11 @@ Here is a look at the pgbr interface.
 </div>
 
 <div align="center">
+  <h3> Backup Schedules </h3>
+  <img src="./.github/images/schedules.png" alt="Backup Schedules" width="100%"/>
+</div>
+
+<div align="center">
   <h3> Migration Tool </h3>
   <img src="./.github/images/migrate.png" alt="Migration Tool" width="100%"/>
 </div>
