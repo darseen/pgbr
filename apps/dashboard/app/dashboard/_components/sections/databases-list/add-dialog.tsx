@@ -87,7 +87,7 @@ export default function AddDatabaseDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? "Edit Database" : "Add Database Database"}
+            {isEditing ? "Edit Database" : "Add Database"}
           </DialogTitle>
           <DialogDescription>
             {isEditing
