@@ -21,6 +21,7 @@ for arg in "$@"; do
     -h | --help)
       echo "usage: install.sh [--dir=PATH] [--no-start]"
       echo "env: BASE_URL, PGBR_DIR, PGBR_PORT, PGBR_VERSION, PGBR_REF, PGBR_REPO"
+      echo "the host port defaults to the first free one from 3000; set PGBR_PORT to pin it"
       exit 0
       ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
@@ -74,6 +75,76 @@ env_put() {
   printf '%s=%s\n' "$1" "$2" >>.env
 }
 
+is_ipv4() { printf '%s' "${1:-}" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; }
+
+is_port() {
+  case "${1:-}" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
+}
+
+url_hostport() {
+  _hp=${1#*://}
+  printf '%s' "${_hp%%/*}"
+}
+
+url_host() { _h=$(url_hostport "$1"); printf '%s' "${_h%%:*}"; }
+
+url_port() {
+  _h=$(url_hostport "$1")
+  case "$_h" in *:[0-9]*) printf '%s' "${_h##*:}" ;; esac
+}
+
+normalize_url() {
+  _u=$1
+  case "$_u" in *://*) ;; *) _u="http://$_u" ;; esac
+  while :; do
+    case "$_u" in */) _u=${_u%/} ;; *) break ;; esac
+  done
+  printf '%s' "$_u"
+}
+
+listening_ports() {
+  if need ss; then
+    ss -ltn 2>/dev/null | awk '{print $4}'
+  elif need netstat; then
+    netstat -ltn 2>/dev/null | awk '{print $4}'
+  fi | sed -n 's/.*[:.]\([0-9][0-9]*\)$/\1/p'
+}
+
+# Published ports of running containers, split into ours and everyone else's, so
+# that re-running the installer does not report a conflict with itself.
+container_ports() {
+  _want=$1
+  _own=$(docker compose -f compose.prod.yaml ps -q 2>/dev/null | cut -c1-12 | tr '\n' ' ')
+  docker ps --format '{{.ID}}|{{.Ports}}' 2>/dev/null |
+    while IFS='|' read -r _id _ports; do
+      case " $_own " in
+        *" $_id "*) [ "$_want" = own ] || continue ;;
+        *) [ "$_want" = other ] || continue ;;
+      esac
+      printf '%s\n' "$_ports"
+    done | grep -oE ':[0-9]+->' | tr -cd '0-9\n'
+}
+
+TAKEN_PORTS=""
+scan_ports() {
+  TAKEN_PORTS=$( { listening_ports; container_ports other; } | sort -u)
+  for _p in $(container_ports own); do
+    TAKEN_PORTS=$(printf '%s\n' "$TAKEN_PORTS" | grep -vx "$_p" || true)
+  done
+}
+
+port_taken() { printf '%s\n' "$TAKEN_PORTS" | grep -qx "$1"; }
+
+first_free_port() {
+  _p=$1
+  while [ "$_p" -lt 65536 ]; do
+    port_taken "$_p" || break
+    _p=$((_p + 1))
+  done
+  printf '%s' "$_p"
+}
+
 need docker || die "docker is not installed — see https://docs.docker.com/engine/install/"
 docker compose version >/dev/null 2>&1 || die "the docker compose plugin is required (docker compose version)"
 docker info >/dev/null 2>&1 || die "cannot reach the docker daemon — is it running, and is your user in the docker group?"
@@ -101,10 +172,60 @@ if [ -f compose.prod.yaml ] && ! cmp -s "$tmp" compose.prod.yaml; then
 fi
 cat "$tmp" >compose.prod.yaml
 
+scan_ports
+
+port=${PGBR_PORT:-$(env_get PGBR_PORT)}
+port_pinned=1
+if [ -z "$port" ]; then
+  port_pinned=0
+  port=$(first_free_port 3000)
+fi
+
+if [ "$port_pinned" -eq 1 ]; then
+  if port_taken "$port"; then
+    die "port $port is already in use; free it or re-run with PGBR_PORT=<free port>"
+  fi
+elif has_tty; then
+  while :; do
+    _suggest=$(first_free_port "$port")
+    [ "$_suggest" = "$port" ] || info "port $port is already in use, suggesting $_suggest"
+    port=$_suggest
+    _ans=$(ask "port to publish pgbr on" "$_suggest")
+    if ! is_port "$_ans"; then
+      warn "'$_ans' is not a valid port number"
+    elif port_taken "$_ans"; then
+      warn "port $_ans is already in use on this host"
+    else
+      port=$_ans
+      break
+    fi
+  done
+elif [ "$port" != 3000 ]; then
+  warn "port 3000 is already in use, publishing pgbr on $port instead"
+fi
+
 base_url=${BASE_URL:-$(env_get BASE_URL)}
 if [ -z "$base_url" ]; then
-  base_url=$(ask "URL you will open pgbr on" "http://localhost:3000")
-  has_tty || warn "no terminal to prompt on — defaulting BASE_URL to $base_url; edit .env if that is not the URL you open"
+  base_url=$(ask "URL you will open pgbr on" "http://localhost:$port")
+  has_tty || warn "no terminal to prompt on, defaulting BASE_URL to $base_url; edit .env if that is not the URL you open"
+fi
+base_url=$(normalize_url "$base_url")
+
+# A port typed into the URL is the port the user expects to reach, so publish on
+# it instead of binding something else and failing at container start.
+_uport=$(url_port "$base_url")
+_uhost=$(url_host "$base_url")
+if [ -n "$_uport" ] && [ "$_uport" != "$port" ]; then
+  if [ "$port_pinned" -eq 1 ]; then
+    warn "BASE_URL names port $_uport but PGBR_PORT is $port, so pgbr stays on $port"
+  elif ! is_ipv4 "$_uhost" && [ "$_uhost" != localhost ]; then
+    info "BASE_URL names port $_uport on $_uhost; publishing pgbr on $port for your proxy to forward to"
+  elif port_taken "$_uport"; then
+    warn "BASE_URL names port $_uport, which is already in use; publishing pgbr on $port instead"
+  else
+    info "BASE_URL names port $_uport, publishing pgbr on $_uport to match"
+    port=$_uport
+  fi
 fi
 
 if [ ! -f .env ]; then
@@ -125,7 +246,7 @@ BASE_URL=$base_url
 
 # Set PGBR_BIND_ADDR=127.0.0.1 when a reverse proxy fronts the dashboard.
 PGBR_BIND_ADDR=${PGBR_BIND_ADDR:-0.0.0.0}
-PGBR_PORT=${PGBR_PORT:-3000}
+PGBR_PORT=$port
 
 WORKER_CONCURRENCY=5
 
@@ -146,6 +267,8 @@ else
   env_put AUTH_SECRET "$(rand_b64)"
   env_put POSTGRES_PASSWORD "$(rand_hex)"
   env_put BASE_URL "$base_url"
+  env_put PGBR_BIND_ADDR "${PGBR_BIND_ADDR:-0.0.0.0}"
+  env_put PGBR_PORT "$port"
 fi
 chmod 600 .env 2>/dev/null || true
 
