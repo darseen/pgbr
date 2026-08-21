@@ -16,7 +16,11 @@ Then open http://localhost:3001. The port is pinned to 3001 so the docs and the
 pgbr dashboard (3000) can run side by side.
 
 This app is self-contained: unlike the other workspace apps it needs no database
-or object storage, and no environment variables.
+or object storage. The only environment variable is `NEXT_PUBLIC_SITE_URL`, the
+public origin of the deployed site (for example `https://pgbr.dev`). It is read
+at build time and feeds canonical URLs, Open Graph image URLs, `sitemap.xml`,
+and `robots.txt`. Locally it defaults to `http://localhost:3001`; set it on any
+real deployment or those URLs will point at localhost. See `.env.example`.
 
 ## Writing content
 
@@ -69,6 +73,9 @@ renders client-side and follows the active theme.
 | `app/(home)/` | The landing page |
 | `app/docs/` | Docs layout and page renderer |
 | `app/api/search/route.ts` | Orama search endpoint |
+| `app/sitemap.ts` | `sitemap.xml`, built from the content source |
+| `app/robots.ts` | `robots.txt`, points crawlers at the sitemap |
+| `app/opengraph-image.tsx` | Social card for the landing page |
 | `components/mdx.tsx` | Global MDX component registry |
 | `source.config.ts` | Frontmatter schemas and MDX plugins |
 
