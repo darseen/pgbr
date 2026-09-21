@@ -28,11 +28,11 @@
   "dependencies": {
     "@repo/types": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "pg": "^8.13.1"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "@types/node": "^25.9.4",
-    "@types/pg": "^8.11.10",
+    "@types/node": "^26.6.2",
+    "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.10",
     "typescript": "^6.0.3"
   },
