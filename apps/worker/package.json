@@ -21,11 +21,11 @@
     "@repo/types": "workspace:*",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
-    "tar": "^7.4.3"
+    "tar": "^7.5.22"
   },
   "devDependencies": {
-    "@types/node": "^25.9.4",
-    "tsx": "^4.19.2",
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   }
 }
