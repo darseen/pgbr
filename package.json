@@ -1,6 +1,6 @@
 {
   "name": "pgbr",
-  "version": "2.7.2",
+  "version": "2.7.3",
   "description": "Self-hosted PostgreSQL backup, restore, and migration tool",
   "scripts": {
     "build": "turbo run build",
