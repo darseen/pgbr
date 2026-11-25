@@ -6,3 +6,9 @@ allowBuilds:
   msgpackr-extract: true
   sharp: true
   unrs-resolver: true
+peerDependencyRules:
+  # eslint-config-next accepts eslint 10; these plugins it bundles still cap their peer range at 9.
+  allowedVersions:
+    eslint-plugin-import>eslint: "10"
+    eslint-plugin-jsx-a11y>eslint: "10"
+    eslint-plugin-react>eslint: "10"

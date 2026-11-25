@@ -28,7 +28,7 @@
     "@types/node": "^26.6.7",
     "@types/react": "^19.3.1",
     "@types/react-dom": "^19.3.0",
-    "eslint": "^9.39.4",
+    "eslint": "^10.15.0",
     "eslint-config-next": "16.4.6",
     "postcss": "^8.5.33",
     "tailwindcss": "^4.3.5",
