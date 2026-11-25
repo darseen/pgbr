@@ -20,11 +20,11 @@
     "@repo/storage": "workspace:*",
     "@repo/types": "workspace:*",
     "date-fns": "^4.4.0",
-    "drizzle-orm": "^0.45.2",
-    "tar": "^7.5.22"
+    "drizzle-orm": "^0.45.4",
+    "tar": "^7.5.23"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.7",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   }
