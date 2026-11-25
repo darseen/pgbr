@@ -5,7 +5,7 @@ import {
   backupSchedulesTable,
   databasesTable,
 } from "@repo/db/schema";
-import { parseExpression } from "cron-parser";
+import { CronExpressionParser } from "cron-parser";
 import { formatDistanceToNow } from "date-fns";
 import { desc, eq, inArray } from "drizzle-orm";
 import { CalendarClock, CalendarCheck, Timer } from "lucide-react";
@@ -71,7 +71,7 @@ export default async function SchedulesPage({ searchParams }: Props) {
       let nextRunAt: string | null = null;
       if (schedule.enabled) {
         try {
-          nextRunAt = parseExpression(schedule.cronExpression, {
+          nextRunAt = CronExpressionParser.parse(schedule.cronExpression, {
             tz: schedule.timezone,
           })
             .next()

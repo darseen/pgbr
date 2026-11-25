@@ -1,5 +1,5 @@
 import { applyBackupRefinements, backupBaseSchema } from "@repo/types";
-import { parseExpression } from "cron-parser";
+import { CronExpressionParser } from "cron-parser";
 import z from "zod";
 
 // Flat shape (schedule fields + backup flags at one level) so the shared
@@ -21,7 +21,7 @@ export const scheduleSchema = applyBackupRefinements(
         return;
       }
       try {
-        parseExpression(value);
+        CronExpressionParser.parse(value);
       } catch {
         ctx.addIssue({ code: "custom", message: "Invalid cron expression" });
       }
