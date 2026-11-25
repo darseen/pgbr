@@ -1,7 +1,7 @@
 import { backupSchedulesTable, db } from "@repo/db";
 import type { BackupJobPayload } from "@repo/types";
 import { and, eq, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
-import parser from "cron-parser";
+import { CronExpressionParser } from "cron-parser";
 import { randomUUID } from "node:crypto";
 import { enqueue } from "./client.js";
 import { QUEUE_NAMES } from "./types.js";
@@ -10,8 +10,10 @@ import { QUEUE_NAMES } from "./types.js";
 const SCHEDULER_LOCK_KEY = 4919042;
 
 export function nextOccurrence(expression: string, timezone: string): Date {
-  return parser
-    .parseExpression(expression, { tz: timezone, currentDate: new Date() })
+  return CronExpressionParser.parse(expression, {
+    tz: timezone,
+    currentDate: new Date(),
+  })
     .next()
     .toDate();
 }
