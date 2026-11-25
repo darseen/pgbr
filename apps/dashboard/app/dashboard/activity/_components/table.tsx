@@ -26,6 +26,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import ColumnHeader from "@/components/data-table/column-header";
+import {
+  dataTableFeatures,
+  type DataTableFeatures,
+} from "@/components/data-table/features";
 import DataTablePagination from "@/components/data-table/pagination";
 import StatusBadge from "@/components/status-badge";
 import TimeCell from "@/components/time-cell";
@@ -33,15 +37,11 @@ import TooltipButton from "@/components/tooltip-button";
 import EmptyState from "@/components/ui/empty-state";
 import type { ActivityItem } from "@/types";
 import {
-  ColumnDef,
-  ColumnFiltersState,
-  SortingState,
+  type ColumnDef,
+  type ColumnFiltersState,
+  type SortingState,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
+  useTable,
 } from "@tanstack/react-table";
 import { Activity, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -81,7 +81,7 @@ export default function ActivityTable({
   // instead of whatever the checkboxes happen to have selected.
   const [rowToDelete, setRowToDelete] = useState<ActivityItem | null>(null);
 
-  const columns: ColumnDef<ActivityItem>[] = [
+  const columns: ColumnDef<DataTableFeatures, ActivityItem>[] = [
     {
       id: "select",
       header: ({ table }) => (
@@ -168,20 +168,16 @@ export default function ActivityTable({
     },
   ];
 
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data: items,
     columns,
     getRowId: (row) => `${row.kind}:${row.id}`,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
-    initialState: { pagination: { pageSize: 25 } },
+    initialState: { pagination: { pageIndex: 0, pageSize: 25 } },
     state: {
       globalFilter,
       columnFilters,

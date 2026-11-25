@@ -8,26 +8,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { type Table } from "@tanstack/react-table";
+import { type ReactTable, type RowData } from "@tanstack/react-table";
 import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
+import type { DataTableFeatures } from "./features";
 
-interface Props<TData> {
-  table: Table<TData>;
+interface Props<TData extends RowData> {
+  table: ReactTable<DataTableFeatures, TData>;
   noun?: string;
   nounPlural?: string;
 }
 
-export default function DataTablePagination<TData>({
+export default function DataTablePagination<TData extends RowData>({
   table,
   noun = "row",
   nounPlural = `${noun}s`,
 }: Props<TData>) {
-  const { pageIndex, pageSize } = table.getState().pagination;
+  const { pageIndex, pageSize } = table.state.pagination;
   const filtered = table.getFilteredRowModel().rows.length;
   const pageCount = table.getPageCount();
 

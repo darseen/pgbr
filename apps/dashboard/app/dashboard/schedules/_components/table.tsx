@@ -2,6 +2,10 @@
 
 import toggleSchedule from "@/actions/schedule/toggle";
 import ColumnHeader from "@/components/data-table/column-header";
+import {
+  dataTableFeatures,
+  type DataTableFeatures,
+} from "@/components/data-table/features";
 import DataTablePagination from "@/components/data-table/pagination";
 import StatusBadge from "@/components/status-badge";
 import TimeCell from "@/components/time-cell";
@@ -35,15 +39,11 @@ import {
 } from "@/components/ui/table";
 import { BackupSchedule } from "@repo/db/schema";
 import {
-  ColumnDef,
-  ColumnFiltersState,
-  SortingState,
+  type ColumnDef,
+  type ColumnFiltersState,
+  type SortingState,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
+  useTable,
 } from "@tanstack/react-table";
 import cronstrue from "cronstrue";
 import { CalendarClock, Pencil, Plus, Search, Trash2 } from "lucide-react";
@@ -112,7 +112,7 @@ export default function SchedulesTable({
     }
   };
 
-  const columns: ColumnDef<ScheduleWithMeta>[] = [
+  const columns: ColumnDef<DataTableFeatures, ScheduleWithMeta>[] = [
     {
       id: "name",
       accessorFn: (row) => row.schedule.name,
@@ -238,19 +238,15 @@ export default function SchedulesTable({
     },
   ];
 
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data: schedules,
     columns,
     getRowId: (row) => row.schedule.id,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
     onSortingChange: setSorting,
-    initialState: { pagination: { pageSize: 10 } },
+    initialState: { pagination: { pageIndex: 0, pageSize: 10 } },
     state: { globalFilter, columnFilters, sorting },
     globalFilterFn: (row, columnId, filterValue) => {
       const search = String(filterValue).toLowerCase();

@@ -27,6 +27,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import ColumnHeader from "@/components/data-table/column-header";
+import {
+  dataTableFeatures,
+  type DataTableFeatures,
+} from "@/components/data-table/features";
 import DataTablePagination from "@/components/data-table/pagination";
 import StatusBadge from "@/components/status-badge";
 import TimeCell from "@/components/time-cell";
@@ -35,15 +39,11 @@ import EmptyState from "@/components/ui/empty-state";
 import { formatFileSize } from "@/utils";
 import { BackupJob } from "@repo/db/schema";
 import {
-  ColumnDef,
-  ColumnFiltersState,
-  SortingState,
+  type ColumnDef,
+  type ColumnFiltersState,
+  type SortingState,
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
+  useTable,
 } from "@tanstack/react-table";
 import { Download, FileArchive, Plus, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -85,7 +85,7 @@ export default function BackupsTable({ backupJobs, initialStatus }: Props) {
     document.body.removeChild(link);
   };
 
-  const columns: ColumnDef<BackupJob>[] = [
+  const columns: ColumnDef<DataTableFeatures, BackupJob>[] = [
     {
       id: "select",
       header: ({ table }) => (
@@ -192,19 +192,15 @@ export default function BackupsTable({ backupJobs, initialStatus }: Props) {
     },
   ];
 
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data: backupJobs,
     columns,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     onGlobalFilterChange: setGlobalFilter,
     onColumnFiltersChange: setColumnFilters,
     onSortingChange: setSorting,
     onRowSelectionChange: setRowSelection,
-    initialState: { pagination: { pageSize: 10 } },
+    initialState: { pagination: { pageIndex: 0, pageSize: 10 } },
     state: {
       globalFilter,
       columnFilters,
